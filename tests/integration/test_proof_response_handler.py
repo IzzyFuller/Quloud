@@ -4,16 +4,16 @@ import pytest
 from dataclasses import dataclass, field
 
 from quloud.services.proof_response_handler import ProofResponseHandler
-from quloud.core.messages import ProofOfStorageResponse
+from quloud.services.message_contracts import ProofResponseMessage
 
 
 @dataclass
 class ResponseCollector:
     """Test double that collects responses."""
 
-    responses: list[ProofOfStorageResponse] = field(default_factory=list)
+    responses: list[ProofResponseMessage] = field(default_factory=list)
 
-    def on_response(self, response: ProofOfStorageResponse) -> None:
+    def on_response(self, response: ProofResponseMessage) -> None:
         """Collect the response."""
         self.responses.append(response)
 
@@ -37,7 +37,7 @@ class TestProofResponseHandler:
         self, handler: ProofResponseHandler, collector: ResponseCollector
     ) -> None:
         """Handler invokes callback with the response."""
-        response = ProofOfStorageResponse(
+        response = ProofResponseMessage(
             blob_id="blob123", node_id="node-A", proof=b"proof-hash", found=True
         )
 
@@ -52,7 +52,7 @@ class TestProofResponseHandler:
         self, handler: ProofResponseHandler, collector: ResponseCollector
     ) -> None:
         """Handler passes through not-found responses (blob lost)."""
-        response = ProofOfStorageResponse(
+        response = ProofResponseMessage(
             blob_id="lost-blob", node_id="node-B", proof=None, found=False
         )
 
@@ -67,17 +67,17 @@ class TestProofResponseHandler:
     ) -> None:
         """Handler can process proofs from multiple storage nodes."""
         handler.handle(
-            ProofOfStorageResponse(
+            ProofResponseMessage(
                 blob_id="blob1", node_id="node-A", proof=b"proof-A", found=True
             )
         )
         handler.handle(
-            ProofOfStorageResponse(
+            ProofResponseMessage(
                 blob_id="blob1", node_id="node-B", proof=b"proof-B", found=True
             )
         )
         handler.handle(
-            ProofOfStorageResponse(
+            ProofResponseMessage(
                 blob_id="blob1", node_id="node-C", proof=b"proof-C", found=True
             )
         )

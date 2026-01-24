@@ -161,7 +161,11 @@ class TestProofRequestHandler:
         handler.handle(ProofRequestMessage(blob_id="replay-test", seed=b"seed-1"))
         handler.handle(ProofRequestMessage(blob_id="replay-test", seed=b"seed-2"))
 
-        proof1 = ProofResponseMessage.model_validate_json(publisher.published[0][1]).proof
-        proof2 = ProofResponseMessage.model_validate_json(publisher.published[1][1]).proof
+        proof1 = ProofResponseMessage.model_validate_json(
+            publisher.published[0][1]
+        ).proof
+        proof2 = ProofResponseMessage.model_validate_json(
+            publisher.published[1][1]
+        ).proof
 
         assert proof1 != proof2

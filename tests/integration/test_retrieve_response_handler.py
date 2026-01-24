@@ -4,16 +4,16 @@ import pytest
 from dataclasses import dataclass, field
 
 from quloud.services.retrieve_response_handler import RetrieveResponseHandler
-from quloud.core.messages import RetrieveResponse
+from quloud.services.message_contracts import RetrieveResponseMessage
 
 
 @dataclass
 class ResponseCollector:
     """Test double that collects responses."""
 
-    responses: list[RetrieveResponse] = field(default_factory=list)
+    responses: list[RetrieveResponseMessage] = field(default_factory=list)
 
-    def on_response(self, response: RetrieveResponse) -> None:
+    def on_response(self, response: RetrieveResponseMessage) -> None:
         """Collect the response."""
         self.responses.append(response)
 
@@ -37,7 +37,7 @@ class TestRetrieveResponseHandler:
         self, handler: RetrieveResponseHandler, collector: ResponseCollector
     ) -> None:
         """Handler invokes callback with the response."""
-        response = RetrieveResponse(
+        response = RetrieveResponseMessage(
             blob_id="blob123", node_id="node-A", data=b"my data", found=True
         )
 
@@ -52,7 +52,7 @@ class TestRetrieveResponseHandler:
         self, handler: RetrieveResponseHandler, collector: ResponseCollector
     ) -> None:
         """Handler passes through not-found responses."""
-        response = RetrieveResponse(
+        response = RetrieveResponseMessage(
             blob_id="missing", node_id="node-B", data=None, found=False
         )
 
@@ -67,12 +67,12 @@ class TestRetrieveResponseHandler:
     ) -> None:
         """Handler can process multiple responses from different nodes."""
         handler.handle(
-            RetrieveResponse(
+            RetrieveResponseMessage(
                 blob_id="blob1", node_id="node-A", data=b"data", found=True
             )
         )
         handler.handle(
-            RetrieveResponse(
+            RetrieveResponseMessage(
                 blob_id="blob1", node_id="node-B", data=b"data", found=True
             )
         )

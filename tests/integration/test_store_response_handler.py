@@ -4,16 +4,16 @@ import pytest
 from dataclasses import dataclass, field
 
 from quloud.services.store_response_handler import StoreResponseHandler
-from quloud.core.messages import StoreResponse
+from quloud.services.message_contracts import StoreResponseMessage
 
 
 @dataclass
 class ResponseCollector:
     """Test double that collects responses."""
 
-    responses: list[StoreResponse] = field(default_factory=list)
+    responses: list[StoreResponseMessage] = field(default_factory=list)
 
-    def on_response(self, response: StoreResponse) -> None:
+    def on_response(self, response: StoreResponseMessage) -> None:
         """Collect the response."""
         self.responses.append(response)
 
@@ -37,7 +37,9 @@ class TestStoreResponseHandler:
         self, handler: StoreResponseHandler, collector: ResponseCollector
     ) -> None:
         """Handler invokes callback with the response."""
-        response = StoreResponse(blob_id="blob123", node_id="node-A", stored=True)
+        response = StoreResponseMessage(
+            blob_id="blob123", node_id="node-A", stored=True
+        )
 
         handler.handle(response)
 
@@ -50,9 +52,15 @@ class TestStoreResponseHandler:
         self, handler: StoreResponseHandler, collector: ResponseCollector
     ) -> None:
         """Handler can process multiple responses."""
-        handler.handle(StoreResponse(blob_id="blob1", node_id="node-A", stored=True))
-        handler.handle(StoreResponse(blob_id="blob1", node_id="node-B", stored=True))
-        handler.handle(StoreResponse(blob_id="blob1", node_id="node-C", stored=True))
+        handler.handle(
+            StoreResponseMessage(blob_id="blob1", node_id="node-A", stored=True)
+        )
+        handler.handle(
+            StoreResponseMessage(blob_id="blob1", node_id="node-B", stored=True)
+        )
+        handler.handle(
+            StoreResponseMessage(blob_id="blob1", node_id="node-C", stored=True)
+        )
 
         assert len(collector.responses) == 3
         node_ids = {r.node_id for r in collector.responses}
@@ -62,7 +70,9 @@ class TestStoreResponseHandler:
         self, handler: StoreResponseHandler, collector: ResponseCollector
     ) -> None:
         """Handler passes through failed store responses."""
-        response = StoreResponse(blob_id="blob456", node_id="node-X", stored=False)
+        response = StoreResponseMessage(
+            blob_id="blob456", node_id="node-X", stored=False
+        )
 
         handler.handle(response)
 

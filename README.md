@@ -218,20 +218,23 @@ As long as the node responds correctly to protocol requests, it's a valid federa
 
 ## Current Status
 
-**Phase**: Architecture Design & Research
+**Phase**: Core Implementation Complete
 
-✅ Project structure initialized  
-✅ Core architecture defined  
-✅ Message-driven protocol design  
-✅ Owner-initiated auditing model  
-✅ Self-healing replication strategy  
-✅ Design conversations documented  
-🔄 Technology evaluation (see [RESEARCH.md](RESEARCH.md))  
-⬜ ZKP implementation  
-⬜ Pub-sub infrastructure  
-⬜ HMAC proof-of-storage  
-⬜ Storage adapter  
-⬜ CLI interface  
+✅ Project structure initialized
+✅ Core architecture defined (hexagonal/ports & adapters)
+✅ Message-driven protocol design
+✅ Owner-initiated auditing model
+✅ Self-healing replication strategy
+✅ Design conversations documented
+✅ Pub-sub infrastructure (RabbitMQ via [synapse](https://github.com/IzzyFuller/synapse))
+✅ Proof-of-storage with replay protection (SHA-256 challenge-response)
+✅ Storage adapter (filesystem)
+✅ Encryption service (PyNaCl SecretBox - XSalsa20 + Poly1305)
+✅ Double-encryption: E_node(E_owner(data))
+✅ 63 tests, 78% coverage
+🔄 ZKP implementation (see [RESEARCH.md](RESEARCH.md))
+⬜ CLI interface
+⬜ Multi-node integration tests  
 
 ## Getting Started
 
@@ -261,7 +264,7 @@ This is an early-stage project. Design feedback and architectural discussion wel
 
 ## License
 
-TBD
+MIT License - see [LICENSE](LICENSE)
 
 ---
 

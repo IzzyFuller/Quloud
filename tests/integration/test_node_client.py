@@ -5,10 +5,10 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from quloud.services.node_client import NodeClient
-from quloud.core.messages import (
-    StoreRequest,
-    RetrieveRequest,
-    ProofOfStorageRequest,
+from quloud.services.message_contracts import (
+    StoreRequestMessage,
+    RetrieveRequestMessage,
+    ProofRequestMessage,
 )
 
 
@@ -53,7 +53,7 @@ class TestStoreBlob:
         assert len(publisher.published) == 1
         topic, data = publisher.published[0]
         assert topic == "quloud-store"
-        request = StoreRequest.from_bytes(data)
+        request = StoreRequestMessage.model_validate_json(data)
         assert request.blob_id == "blob123"
         assert request.data == b"my data"
 
@@ -66,7 +66,7 @@ class TestStoreBlob:
         assert len(publisher.published) == 3
         for topic, data in publisher.published:
             assert topic == "quloud-store"
-            request = StoreRequest.from_bytes(data)
+            request = StoreRequestMessage.model_validate_json(data)
             assert request.blob_id == "blob456"
             assert request.data == b"redundant"
 
@@ -91,7 +91,7 @@ class TestRetrieveBlob:
         assert len(publisher.published) == 1
         topic, data = publisher.published[0]
         assert topic == "quloud-retrieve"
-        request = RetrieveRequest.from_bytes(data)
+        request = RetrieveRequestMessage.model_validate_json(data)
         assert request.blob_id == "blob789"
 
 
@@ -108,6 +108,6 @@ class TestRequestProof:
         assert len(publisher.published) == 1
         topic, data = publisher.published[0]
         assert topic == "quloud-proof"
-        request = ProofOfStorageRequest.from_bytes(data)
+        request = ProofRequestMessage.model_validate_json(data)
         assert request.blob_id == "proof-blob"
         assert request.seed == seed
