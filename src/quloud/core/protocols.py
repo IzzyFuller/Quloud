@@ -21,3 +21,27 @@ class EncryptionProtocol(Protocol):
     def decrypt(self, key: bytes, ciphertext: bytes) -> bytes:
         """Decrypt data with the given key."""
         ...
+
+
+class StorageProtocol(Protocol):
+    """Port for storage operations.
+
+    Defines the interface for storing and retrieving encrypted data.
+    Each storage node uses this to persist data locally.
+    """
+
+    def store(self, blob_id: str, data: bytes) -> None:
+        """Store data with the given ID."""
+        ...
+
+    def retrieve(self, blob_id: str) -> bytes | None:
+        """Retrieve data by ID. Returns None if not found."""
+        ...
+
+    def delete(self, blob_id: str) -> bool:
+        """Delete data. Returns True if deleted, False if not found."""
+        ...
+
+    def exists(self, blob_id: str) -> bool:
+        """Check if data exists."""
+        ...
