@@ -7,13 +7,16 @@ import os
 import signal
 import threading
 import uuid
+from pathlib import Path
 
 import pika
 
 from synapse.adapters.rabbitmq import RabbitMQPublisher, RabbitMQSubscriber
 from synapse.consumer.message_consumer import MessageConsumer
 
+from quloud.adapters.encryption.pynacl_adapter import PyNaClEncryptionAdapter
 from quloud.adapters.storage.filesystem_adapter import FilesystemStorageAdapter
+from quloud.core.encryption_service import EncryptionService
 from quloud.core.storage_service import StorageService
 from quloud.services.message_contracts import (
     StoreRequestMessage,
@@ -55,11 +58,27 @@ def setup_queues(channel: pika.channel.Channel) -> None:
         channel.queue_declare(queue=queue, durable=True)
 
 
+def load_or_generate_key(
+    key_file: Path, encryption_service: EncryptionService
+) -> bytes:
+    """Load node key from file, or generate and save a new one."""
+    if key_file.exists():
+        print(f"Loading node key from {key_file}")
+        return key_file.read_bytes()
+
+    print(f"Generating new node key, saving to {key_file}")
+    key = encryption_service.generate_key()
+    key_file.parent.mkdir(parents=True, exist_ok=True)
+    key_file.write_bytes(key)
+    return key
+
+
 def main() -> None:
     """Run the quloud storage node."""
     # Configuration from environment
     node_id = os.environ.get("NODE_ID", f"node-{uuid.uuid4().hex[:8]}")
     storage_dir = os.environ.get("STORAGE_DIR", "./data")
+    key_file = Path(os.environ.get("NODE_KEY_FILE", f"{storage_dir}/node.key"))
 
     print(f"Starting Quloud node: {node_id}")
     print(f"Storage directory: {storage_dir}")
@@ -71,20 +90,29 @@ def main() -> None:
 
     # Create adapters
     storage_adapter = FilesystemStorageAdapter(base_dir=storage_dir)
+    encryption_adapter = PyNaClEncryptionAdapter()
     publisher = RabbitMQPublisher(connection)
 
     # Create services
     storage_service = StorageService(storage=storage_adapter)
+    encryption_service = EncryptionService(encryption=encryption_adapter)
+
+    # Load or generate node encryption key
+    node_key = load_or_generate_key(key_file, encryption_service)
 
     # Create request handlers (storage node side)
     store_handler = StoreRequestHandler(
         storage=storage_service,
+        encryption=encryption_service,
+        node_key=node_key,
         publisher=publisher,
         node_id=node_id,
         response_topic="quloud.store.responses",
     )
     retrieve_handler = RetrieveRequestHandler(
         storage=storage_service,
+        encryption=encryption_service,
+        node_key=node_key,
         publisher=publisher,
         node_id=node_id,
         response_topic="quloud.retrieve.responses",

@@ -5,10 +5,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from quloud.core.storage_service import StorageService
-from quloud.services.retrieve_request_handler import RetrieveRequestHandler
-from quloud.core.messages import RetrieveRequest, RetrieveResponse
+from quloud.adapters.encryption.pynacl_adapter import PyNaClEncryptionAdapter
 from quloud.adapters.storage.filesystem_adapter import FilesystemStorageAdapter
+from quloud.core.encryption_service import EncryptionService
+from quloud.core.storage_service import StorageService
+from quloud.services.message_contracts import (
+    RetrieveRequestMessage,
+    RetrieveResponseMessage,
+)
+from quloud.services.retrieve_request_handler import RetrieveRequestHandler
 
 
 @dataclass
@@ -37,6 +42,19 @@ def storage_service(storage_dir: Path) -> StorageService:
 
 
 @pytest.fixture
+def encryption_service() -> EncryptionService:
+    """Provide an EncryptionService with PyNaCl adapter."""
+    adapter = PyNaClEncryptionAdapter()
+    return EncryptionService(adapter)
+
+
+@pytest.fixture
+def node_key(encryption_service: EncryptionService) -> bytes:
+    """Provide a test node encryption key."""
+    return encryption_service.generate_key()
+
+
+@pytest.fixture
 def publisher() -> FakePublisher:
     """Provide a fake publisher for capturing responses."""
     return FakePublisher()
@@ -44,11 +62,16 @@ def publisher() -> FakePublisher:
 
 @pytest.fixture
 def handler(
-    storage_service: StorageService, publisher: FakePublisher
+    storage_service: StorageService,
+    encryption_service: EncryptionService,
+    node_key: bytes,
+    publisher: FakePublisher,
 ) -> RetrieveRequestHandler:
     """Provide a RetrieveRequestHandler."""
     return RetrieveRequestHandler(
         storage=storage_service,
+        encryption=encryption_service,
+        node_key=node_key,
         publisher=publisher,
         node_id="test-node-001",
         response_topic="quloud-responses",
@@ -62,32 +85,38 @@ class TestRetrieveRequestHandler:
         self,
         handler: RetrieveRequestHandler,
         storage_service: StorageService,
+        encryption_service: EncryptionService,
+        node_key: bytes,
         publisher: FakePublisher,
     ) -> None:
-        """Handler retrieves and publishes stored data."""
-        storage_service.store("existing-blob", b"stored data")
-        request = RetrieveRequest(blob_id="existing-blob")
+        """Handler retrieves, decrypts, and publishes stored data."""
+        # Store encrypted data (as the store handler would)
+        encrypted = encryption_service.encrypt(node_key, b"stored data")
+        storage_service.store("existing-blob", encrypted)
+        request = RetrieveRequestMessage(blob_id="existing-blob")
 
         handler.handle(request)
 
         assert len(publisher.published) == 1
         topic, data = publisher.published[0]
-        response = RetrieveResponse.from_bytes(data)
+        response = RetrieveResponseMessage.model_validate_json(data)
         assert response.blob_id == "existing-blob"
         assert response.node_id == "test-node-001"
         assert response.found is True
-        assert response.data == b"stored data"
+        assert response.data == b"stored data"  # Decrypted
 
     def test_handles_missing_blob(
         self, handler: RetrieveRequestHandler, publisher: FakePublisher
     ) -> None:
         """Handler publishes not-found response for missing blob."""
-        request = RetrieveRequest(blob_id="nonexistent")
+        request = RetrieveRequestMessage(blob_id="nonexistent")
 
         handler.handle(request)
 
         assert len(publisher.published) == 1
-        response = RetrieveResponse.from_bytes(publisher.published[0][1])
+        response = RetrieveResponseMessage.model_validate_json(
+            publisher.published[0][1]
+        )
         assert response.blob_id == "nonexistent"
         assert response.found is False
         assert response.data is None
