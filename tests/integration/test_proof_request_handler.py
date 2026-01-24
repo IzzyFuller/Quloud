@@ -1,14 +1,17 @@
 """Integration tests for ProofRequestHandler."""
 
+import hashlib
 import pytest
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from quloud.core.storage_service import StorageService
-from quloud.services.proof_request_handler import ProofRequestHandler
-from quloud.core.messages import ProofOfStorageRequest, ProofOfStorageResponse
+from quloud.adapters.encryption.pynacl_adapter import PyNaClEncryptionAdapter
 from quloud.adapters.storage.filesystem_adapter import FilesystemStorageAdapter
+from quloud.core.encryption_service import EncryptionService
+from quloud.core.storage_service import StorageService
+from quloud.services.message_contracts import ProofRequestMessage, ProofResponseMessage
+from quloud.services.proof_request_handler import ProofRequestHandler
 
 
 @dataclass
@@ -37,6 +40,19 @@ def storage_service(storage_dir: Path) -> StorageService:
 
 
 @pytest.fixture
+def encryption_service() -> EncryptionService:
+    """Provide an EncryptionService with PyNaCl adapter."""
+    adapter = PyNaClEncryptionAdapter()
+    return EncryptionService(adapter)
+
+
+@pytest.fixture
+def node_key(encryption_service: EncryptionService) -> bytes:
+    """Provide a node encryption key."""
+    return encryption_service.generate_key()
+
+
+@pytest.fixture
 def publisher() -> FakePublisher:
     """Provide a fake publisher for capturing responses."""
     return FakePublisher()
@@ -44,14 +60,19 @@ def publisher() -> FakePublisher:
 
 @pytest.fixture
 def handler(
-    storage_service: StorageService, publisher: FakePublisher
+    storage_service: StorageService,
+    encryption_service: EncryptionService,
+    node_key: bytes,
+    publisher: FakePublisher,
 ) -> ProofRequestHandler:
-    """Provide a ProofRequestHandler."""
+    """Provide a ProofRequestHandler with encryption."""
     return ProofRequestHandler(
         storage=storage_service,
+        encryption=encryption_service,
+        node_key=node_key,
         publisher=publisher,
         node_id="test-node-001",
-        response_topic="quloud-responses",
+        response_topic="quloud.proof.responses",
     )
 
 
@@ -62,48 +83,85 @@ class TestProofRequestHandler:
         self,
         handler: ProofRequestHandler,
         storage_service: StorageService,
+        encryption_service: EncryptionService,
+        node_key: bytes,
         publisher: FakePublisher,
     ) -> None:
         """Handler computes and publishes proof for stored blob."""
-        storage_service.store("proof-blob", b"data to prove")
+        # Simulate what StoreRequestHandler does: encrypt then store
+        owner_encrypted_data = b"E_owner(original data)"
+        node_encrypted = encryption_service.encrypt(node_key, owner_encrypted_data)
+        storage_service.store("proof-blob", node_encrypted)
+
         seed = b"challenge-seed"
-        request = ProofOfStorageRequest(blob_id="proof-blob", seed=seed)
+        request = ProofRequestMessage(blob_id="proof-blob", seed=seed)
 
         handler.handle(request)
 
         assert len(publisher.published) == 1
-        response = ProofOfStorageResponse.from_bytes(publisher.published[0][1])
+        response = ProofResponseMessage.model_validate_json(publisher.published[0][1])
         assert response.blob_id == "proof-blob"
         assert response.node_id == "test-node-001"
         assert response.found is True
         assert response.proof is not None
 
-    def test_proof_matches_service_computation(
+    def test_proof_computed_on_owner_encrypted_data(
         self,
         handler: ProofRequestHandler,
         storage_service: StorageService,
+        encryption_service: EncryptionService,
+        node_key: bytes,
         publisher: FakePublisher,
     ) -> None:
-        """Handler's published proof matches StorageService computation."""
-        storage_service.store("verify-blob", b"verify data")
-        seed = b"verification-seed"
-        expected = storage_service.request_proof_of_storage("verify-blob", seed)
-        request = ProofOfStorageRequest(blob_id="verify-blob", seed=seed)
+        """Proof is computed on E_owner(data), not E_node(E_owner(data)).
 
+        This allows the owner to verify the proof using their local copy
+        of E_owner(data).
+        """
+        owner_encrypted_data = b"E_owner(data) - what owner has locally"
+        node_encrypted = encryption_service.encrypt(node_key, owner_encrypted_data)
+        storage_service.store("verify-blob", node_encrypted)
+
+        seed = b"verification-seed"
+        # Owner computes expected proof from their local E_owner(data)
+        expected_proof = hashlib.sha256(owner_encrypted_data + seed).digest()
+
+        request = ProofRequestMessage(blob_id="verify-blob", seed=seed)
         handler.handle(request)
 
-        response = ProofOfStorageResponse.from_bytes(publisher.published[0][1])
-        assert response.proof == expected
+        response = ProofResponseMessage.model_validate_json(publisher.published[0][1])
+        assert response.proof == expected_proof
 
     def test_handles_missing_blob(
         self, handler: ProofRequestHandler, publisher: FakePublisher
     ) -> None:
         """Handler publishes not-found response for missing blob."""
-        request = ProofOfStorageRequest(blob_id="missing", seed=b"seed")
+        request = ProofRequestMessage(blob_id="missing", seed=b"seed")
 
         handler.handle(request)
 
-        response = ProofOfStorageResponse.from_bytes(publisher.published[0][1])
+        response = ProofResponseMessage.model_validate_json(publisher.published[0][1])
         assert response.blob_id == "missing"
         assert response.found is False
         assert response.proof is None
+
+    def test_different_seeds_produce_different_proofs(
+        self,
+        handler: ProofRequestHandler,
+        storage_service: StorageService,
+        encryption_service: EncryptionService,
+        node_key: bytes,
+        publisher: FakePublisher,
+    ) -> None:
+        """Different seeds produce different proofs (replay protection)."""
+        owner_encrypted_data = b"same data"
+        node_encrypted = encryption_service.encrypt(node_key, owner_encrypted_data)
+        storage_service.store("replay-test", node_encrypted)
+
+        handler.handle(ProofRequestMessage(blob_id="replay-test", seed=b"seed-1"))
+        handler.handle(ProofRequestMessage(blob_id="replay-test", seed=b"seed-2"))
+
+        proof1 = ProofResponseMessage.model_validate_json(publisher.published[0][1]).proof
+        proof2 = ProofResponseMessage.model_validate_json(publisher.published[1][1]).proof
+
+        assert proof1 != proof2

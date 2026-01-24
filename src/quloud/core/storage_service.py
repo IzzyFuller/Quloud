@@ -66,7 +66,7 @@ class StorageService:
         if data is None:
             return ProofResult(found=False, proof=None)
 
-        proof = self._compute_proof(data, seed)
+        proof = self.compute_proof(data, seed)
         return ProofResult(found=True, proof=proof)
 
     def request_proof_of_storage(self, blob_id: str, seed: bytes) -> bytes | None:
@@ -85,8 +85,16 @@ class StorageService:
         if data is None:
             return None
 
-        return self._compute_proof(data, seed)
+        return self.compute_proof(data, seed)
 
-    def _compute_proof(self, data: bytes, seed: bytes) -> bytes:
-        """Compute hash(data + seed) proof."""
+    def compute_proof(self, data: bytes, seed: bytes) -> bytes:
+        """Compute hash(data + seed) proof.
+
+        Args:
+            data: The data to prove possession of.
+            seed: Random challenge seed for replay protection.
+
+        Returns:
+            SHA256 hash of data + seed.
+        """
         return hashlib.sha256(data + seed).digest()

@@ -119,6 +119,8 @@ def main() -> None:
     )
     proof_handler = ProofRequestHandler(
         storage=storage_service,
+        encryption=encryption_service,
+        node_key=node_key,
         publisher=publisher,
         node_id=node_id,
         response_topic="quloud.proof.responses",
