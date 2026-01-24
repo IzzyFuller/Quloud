@@ -1,7 +1,8 @@
 """Storage node message handler for pub-sub integration."""
 
 import json
-from typing import Any, Protocol, runtime_checkable
+
+from synapse.protocols.publisher import PubSubPublisher
 
 from quloud.core.storage_service import StorageService
 from quloud.core.messages import (
@@ -14,15 +15,6 @@ from quloud.core.messages import (
 )
 
 
-@runtime_checkable
-class Publisher(Protocol):
-    """Protocol for publishing messages."""
-
-    def publish(self, topic: str, data: bytes, **kwargs: Any) -> Any:
-        """Publish data to a topic."""
-        ...
-
-
 class StorageNodeHandler:
     """Handles incoming messages for a storage node.
 
@@ -33,7 +25,7 @@ class StorageNodeHandler:
     def __init__(
         self,
         storage: StorageService,
-        publisher: Publisher,
+        publisher: PubSubPublisher,
         node_id: str,
         response_topic: str,
     ) -> None:
