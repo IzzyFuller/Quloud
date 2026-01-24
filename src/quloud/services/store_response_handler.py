@@ -2,7 +2,7 @@
 
 from typing import Callable
 
-from quloud.core.messages import StoreResponse
+from quloud.services.message_contracts import StoreResponseMessage
 
 
 class StoreResponseHandler:
@@ -11,18 +11,18 @@ class StoreResponseHandler:
     Invokes callback when storage confirmation is received.
     """
 
-    def __init__(self, on_response: Callable[[StoreResponse], None]) -> None:
+    def __init__(self, on_response: Callable[[StoreResponseMessage], None]) -> None:
         """Initialize the handler.
 
         Args:
-            on_response: Callback invoked with each StoreResponse.
+            on_response: Callback invoked with each StoreResponseMessage.
         """
         self._on_response = on_response
 
-    def handle(self, response: StoreResponse) -> None:
+    def handle(self, response: StoreResponseMessage) -> None:
         """Handle a StoreResponse.
 
         Args:
-            response: The validated StoreResponse.
+            response: The validated StoreResponseMessage.
         """
         self._on_response(response)

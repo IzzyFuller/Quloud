@@ -3,7 +3,7 @@
 from synapse.protocols.publisher import PubSubPublisher
 
 from quloud.core.storage_service import StorageService
-from quloud.core.messages import StoreRequest, StoreResponse
+from quloud.services.message_contracts import StoreRequestMessage, StoreResponseMessage
 
 
 class StoreRequestHandler:
@@ -32,16 +32,18 @@ class StoreRequestHandler:
         self._node_id = node_id
         self._response_topic = response_topic
 
-    def handle(self, request: StoreRequest) -> None:
+    def handle(self, request: StoreRequestMessage) -> None:
         """Handle a StoreRequest.
 
         Args:
-            request: The validated StoreRequest.
+            request: The validated StoreRequestMessage.
         """
         self._storage.store(request.blob_id, request.data)
-        response = StoreResponse(
+        response = StoreResponseMessage(
             blob_id=request.blob_id,
             node_id=self._node_id,
             stored=True,
         )
-        self._publisher.publish(self._response_topic, response.to_bytes())
+        self._publisher.publish(
+            self._response_topic, response.model_dump_json().encode()
+        )

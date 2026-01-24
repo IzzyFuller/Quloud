@@ -2,10 +2,10 @@
 
 from synapse.protocols.publisher import PubSubPublisher
 
-from quloud.core.messages import (
-    StoreRequest,
-    RetrieveRequest,
-    ProofOfStorageRequest,
+from quloud.services.message_contracts import (
+    StoreRequestMessage,
+    RetrieveRequestMessage,
+    ProofRequestMessage,
 )
 
 
@@ -43,9 +43,11 @@ class NodeClient:
             data: The encrypted data to store.
             duplicates: Number of copies to request (default 1).
         """
-        request = StoreRequest(blob_id=blob_id, data=data)
+        request = StoreRequestMessage(blob_id=blob_id, data=data)
         for _ in range(duplicates):
-            self._publisher.publish(self._store_topic, request.to_bytes())
+            self._publisher.publish(
+                self._store_topic, request.model_dump_json().encode()
+            )
 
     def retrieve_blob(self, blob_id: str) -> None:
         """Publish RetrieveRequest to the network.
@@ -53,8 +55,10 @@ class NodeClient:
         Args:
             blob_id: Unique identifier for the blob to retrieve.
         """
-        request = RetrieveRequest(blob_id=blob_id)
-        self._publisher.publish(self._retrieve_topic, request.to_bytes())
+        request = RetrieveRequestMessage(blob_id=blob_id)
+        self._publisher.publish(
+            self._retrieve_topic, request.model_dump_json().encode()
+        )
 
     def request_proof(self, blob_id: str, seed: bytes) -> None:
         """Publish ProofOfStorageRequest to the network.
@@ -63,5 +67,5 @@ class NodeClient:
             blob_id: Unique identifier for the blob to verify.
             seed: Random seed for replay protection.
         """
-        request = ProofOfStorageRequest(blob_id=blob_id, seed=seed)
-        self._publisher.publish(self._proof_topic, request.to_bytes())
+        request = ProofRequestMessage(blob_id=blob_id, seed=seed)
+        self._publisher.publish(self._proof_topic, request.model_dump_json().encode())

@@ -3,7 +3,10 @@
 from synapse.protocols.publisher import PubSubPublisher
 
 from quloud.core.storage_service import StorageService
-from quloud.core.messages import RetrieveRequest, RetrieveResponse
+from quloud.services.message_contracts import (
+    RetrieveRequestMessage,
+    RetrieveResponseMessage,
+)
 
 
 class RetrieveRequestHandler:
@@ -32,17 +35,19 @@ class RetrieveRequestHandler:
         self._node_id = node_id
         self._response_topic = response_topic
 
-    def handle(self, request: RetrieveRequest) -> None:
+    def handle(self, request: RetrieveRequestMessage) -> None:
         """Handle a RetrieveRequest.
 
         Args:
-            request: The validated RetrieveRequest.
+            request: The validated RetrieveRequestMessage.
         """
         data = self._storage.retrieve(request.blob_id)
-        response = RetrieveResponse(
+        response = RetrieveResponseMessage(
             blob_id=request.blob_id,
             node_id=self._node_id,
             data=data,
             found=data is not None,
         )
-        self._publisher.publish(self._response_topic, response.to_bytes())
+        self._publisher.publish(
+            self._response_topic, response.model_dump_json().encode()
+        )

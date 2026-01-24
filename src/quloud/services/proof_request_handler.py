@@ -3,7 +3,7 @@
 from synapse.protocols.publisher import PubSubPublisher
 
 from quloud.core.storage_service import StorageService
-from quloud.core.messages import ProofOfStorageRequest, ProofOfStorageResponse
+from quloud.services.message_contracts import ProofRequestMessage, ProofResponseMessage
 
 
 class ProofRequestHandler:
@@ -32,17 +32,19 @@ class ProofRequestHandler:
         self._node_id = node_id
         self._response_topic = response_topic
 
-    def handle(self, request: ProofOfStorageRequest) -> None:
+    def handle(self, request: ProofRequestMessage) -> None:
         """Handle a ProofOfStorageRequest.
 
         Args:
-            request: The validated ProofOfStorageRequest.
+            request: The validated ProofRequestMessage.
         """
         result = self._storage.provide_proof_of_storage(request.blob_id, request.seed)
-        response = ProofOfStorageResponse(
+        response = ProofResponseMessage(
             blob_id=request.blob_id,
             node_id=self._node_id,
             proof=result.proof,
             found=result.found,
         )
-        self._publisher.publish(self._response_topic, response.to_bytes())
+        self._publisher.publish(
+            self._response_topic, response.model_dump_json().encode()
+        )

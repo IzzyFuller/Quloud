@@ -2,7 +2,7 @@
 
 from typing import Callable
 
-from quloud.core.messages import ProofOfStorageResponse
+from quloud.services.message_contracts import ProofResponseMessage
 
 
 class ProofResponseHandler:
@@ -11,18 +11,18 @@ class ProofResponseHandler:
     Invokes callback when proof-of-storage response is received.
     """
 
-    def __init__(self, on_response: Callable[[ProofOfStorageResponse], None]) -> None:
+    def __init__(self, on_response: Callable[[ProofResponseMessage], None]) -> None:
         """Initialize the handler.
 
         Args:
-            on_response: Callback invoked with each ProofOfStorageResponse.
+            on_response: Callback invoked with each ProofResponseMessage.
         """
         self._on_response = on_response
 
-    def handle(self, response: ProofOfStorageResponse) -> None:
+    def handle(self, response: ProofResponseMessage) -> None:
         """Handle a ProofOfStorageResponse.
 
         Args:
-            response: The validated ProofOfStorageResponse.
+            response: The validated ProofResponseMessage.
         """
         self._on_response(response)
