@@ -7,8 +7,44 @@ authors = [
     { name = "Izzy Fuller", email = "izzy.fuller.developer@gmail.com" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "pynacl>=1.5.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+]
+dev = [
+    "mermaid-py>=0.1.0",  # For local mermaid diagram rendering
+]
 
 [build-system]
 requires = ["uv_build>=0.9.24,<0.10.0"]
 build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.coverage.run]
+omit = [
+    "*/__init__.py",
+    "*/protocols.py",
+    "*/protocols/*.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.14",
+]
