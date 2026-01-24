@@ -26,9 +26,7 @@ class StoreRequestMessage(BaseModel):
     def validate_data(cls, v: Any) -> bytes:
         if isinstance(v, str):
             return base64.b64decode(v)
-        if isinstance(v, bytes):
-            return v
-        raise TypeError(f"Expected str or bytes, got {type(v)}")
+        return v  # type: ignore[no-any-return]
 
 
 class StoreResponseMessage(BaseModel):
@@ -67,9 +65,7 @@ class RetrieveResponseMessage(BaseModel):
             return None
         if isinstance(v, str):
             return base64.b64decode(v)
-        if isinstance(v, bytes):
-            return v
-        raise TypeError(f"Expected str, bytes, or None, got {type(v)}")
+        return v  # type: ignore[no-any-return]
 
 
 class ProofRequestMessage(BaseModel):
@@ -88,9 +84,7 @@ class ProofRequestMessage(BaseModel):
     def validate_seed(cls, v: Any) -> bytes:
         if isinstance(v, str):
             return base64.b64decode(v)
-        if isinstance(v, bytes):
-            return v
-        raise TypeError(f"Expected str or bytes, got {type(v)}")
+        return v  # type: ignore[no-any-return]
 
 
 class ProofResponseMessage(BaseModel):
@@ -115,6 +109,4 @@ class ProofResponseMessage(BaseModel):
             return None
         if isinstance(v, str):
             return base64.b64decode(v)
-        if isinstance(v, bytes):
-            return v
-        raise TypeError(f"Expected str, bytes, or None, got {type(v)}")
+        return v  # type: ignore[no-any-return]
