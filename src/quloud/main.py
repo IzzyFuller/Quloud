@@ -74,7 +74,7 @@ def main() -> None:
     publisher = RabbitMQPublisher(connection)
 
     # Create services
-    storage_service = StorageService(adapter=storage_adapter)
+    storage_service = StorageService(storage=storage_adapter)
 
     # Create request handlers (storage node side)
     store_handler = StoreRequestHandler(
