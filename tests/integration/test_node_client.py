@@ -4,7 +4,7 @@ import pytest
 from dataclasses import dataclass, field
 from typing import Any
 
-from quloud.core.node_client import NodeClient
+from quloud.services.node_client import NodeClient
 from quloud.core.messages import (
     StoreRequest,
     RetrieveRequest,

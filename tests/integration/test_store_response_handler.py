@@ -3,7 +3,7 @@
 import pytest
 from dataclasses import dataclass, field
 
-from quloud.handlers.store_response_handler import StoreResponseHandler
+from quloud.services.store_response_handler import StoreResponseHandler
 from quloud.core.messages import StoreResponse
 
 

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from quloud.core.storage_service import StorageService
-from quloud.handlers.retrieve_request_handler import RetrieveRequestHandler
+from quloud.services.retrieve_request_handler import RetrieveRequestHandler
 from quloud.core.messages import RetrieveRequest, RetrieveResponse
 from quloud.adapters.storage.filesystem_adapter import FilesystemStorageAdapter
 
