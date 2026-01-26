@@ -13,6 +13,17 @@ from quloud.services.message_contracts import (
 
 
 @dataclass
+class FakeStorage:
+    """Test double that captures storage operations."""
+
+    stored: dict[str, bytes] = field(default_factory=dict)
+
+    def store(self, blob_id: str, data: bytes) -> None:
+        """Capture the stored data."""
+        self.stored[blob_id] = data
+
+
+@dataclass
 class FakePublisher:
     """Test double that captures published messages."""
 
@@ -25,15 +36,22 @@ class FakePublisher:
 
 
 @pytest.fixture
+def storage() -> FakeStorage:
+    """Provide a fake storage for capturing store calls."""
+    return FakeStorage()
+
+
+@pytest.fixture
 def publisher() -> FakePublisher:
     """Provide a fake publisher for capturing messages."""
     return FakePublisher()
 
 
 @pytest.fixture
-def client(publisher: FakePublisher) -> NodeClient:
+def client(storage: FakeStorage, publisher: FakePublisher) -> NodeClient:
     """Provide a NodeClient."""
     return NodeClient(
+        storage=storage,  # type: ignore[arg-type]
         publisher=publisher,
         store_topic="quloud-store",
         retrieve_topic="quloud-retrieve",
@@ -44,25 +62,33 @@ def client(publisher: FakePublisher) -> NodeClient:
 class TestStoreBlob:
     """Tests for store_blob method."""
 
-    def test_publishes_store_request(
-        self, client: NodeClient, publisher: FakePublisher
+    def test_always_stores_locally(
+        self, client: NodeClient, storage: FakeStorage
     ) -> None:
-        """Client publishes StoreRequest when storing."""
+        """Client always stores data locally."""
         client.store_blob(blob_id="blob123", data=b"my data")
 
-        assert len(publisher.published) == 1
-        topic, data = publisher.published[0]
-        assert topic == "quloud-store"
-        request = StoreRequestMessage.model_validate_json(data)
-        assert request.blob_id == "blob123"
-        assert request.data == b"my data"
+        assert "blob123" in storage.stored
+        assert storage.stored["blob123"] == b"my data"
 
-    def test_publishes_n_requests_for_duplicates(
+    def test_no_publish_when_zero_replicas(
         self, client: NodeClient, publisher: FakePublisher
     ) -> None:
-        """Client publishes n StoreRequests when duplicates specified."""
-        client.store_blob(blob_id="blob456", data=b"redundant", duplicates=3)
+        """Client does not publish when replicas=0 (local only)."""
+        client.store_blob(blob_id="local-only", data=b"data", replicas=0)
 
+        assert len(publisher.published) == 0
+
+    def test_publishes_n_requests_for_replicas(
+        self, client: NodeClient, storage: FakeStorage, publisher: FakePublisher
+    ) -> None:
+        """Client publishes n StoreRequests for n replicas."""
+        client.store_blob(blob_id="blob456", data=b"redundant", replicas=3)
+
+        # Always stored locally
+        assert "blob456" in storage.stored
+
+        # Plus 3 remote replicas
         assert len(publisher.published) == 3
         for topic, data in publisher.published:
             assert topic == "quloud-store"
@@ -70,13 +96,13 @@ class TestStoreBlob:
             assert request.blob_id == "blob456"
             assert request.data == b"redundant"
 
-    def test_default_duplicates_is_one(
+    def test_default_replicas_is_zero(
         self, client: NodeClient, publisher: FakePublisher
     ) -> None:
-        """Default duplicates is 1 (single copy)."""
+        """Default replicas is 0 (local only)."""
         client.store_blob(blob_id="single", data=b"data")
 
-        assert len(publisher.published) == 1
+        assert len(publisher.published) == 0
 
 
 class TestRetrieveBlob:
