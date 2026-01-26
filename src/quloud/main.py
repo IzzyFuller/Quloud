@@ -40,6 +40,7 @@ def create_rabbitmq_connection() -> pika.BlockingConnection:
         host=host,
         port=port,
         credentials=credentials,
+        heartbeat=60,
     )
     return pika.BlockingConnection(parameters)
 
