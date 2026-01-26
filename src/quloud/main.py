@@ -92,7 +92,6 @@ def main() -> None:
     # Create adapters
     storage_adapter = FilesystemStorageAdapter(base_dir=storage_dir)
     encryption_adapter = PyNaClEncryptionAdapter()
-    publisher = RabbitMQPublisher(connection)
 
     # Create services
     storage_service = StorageService(storage=storage_adapter)
@@ -101,12 +100,26 @@ def main() -> None:
     # Load or generate node encryption key
     node_key = load_or_generate_key(key_file, encryption_service)
 
+    # Create subscribers with shared publisher per connection
+    # Each handler gets a publisher on its subscriber's connection to avoid idle timeouts
+    store_connection = create_rabbitmq_connection()
+    store_subscriber = RabbitMQSubscriber(store_connection)
+    store_publisher = RabbitMQPublisher(store_connection)
+
+    retrieve_connection = create_rabbitmq_connection()
+    retrieve_subscriber = RabbitMQSubscriber(retrieve_connection)
+    retrieve_publisher = RabbitMQPublisher(retrieve_connection)
+
+    proof_connection = create_rabbitmq_connection()
+    proof_subscriber = RabbitMQSubscriber(proof_connection)
+    proof_publisher = RabbitMQPublisher(proof_connection)
+
     # Create request handlers (storage node side)
     store_handler = StoreRequestHandler(
         storage=storage_service,
         encryption=encryption_service,
         node_key=node_key,
-        publisher=publisher,
+        publisher=store_publisher,
         node_id=node_id,
         response_topic="quloud.store.responses",
     )
@@ -114,7 +127,7 @@ def main() -> None:
         storage=storage_service,
         encryption=encryption_service,
         node_key=node_key,
-        publisher=publisher,
+        publisher=retrieve_publisher,
         node_id=node_id,
         response_topic="quloud.retrieve.responses",
     )
@@ -122,15 +135,10 @@ def main() -> None:
         storage=storage_service,
         encryption=encryption_service,
         node_key=node_key,
-        publisher=publisher,
+        publisher=proof_publisher,
         node_id=node_id,
         response_topic="quloud.proof.responses",
     )
-
-    # Create subscribers (one per consumer for thread safety)
-    store_subscriber = RabbitMQSubscriber(create_rabbitmq_connection())
-    retrieve_subscriber = RabbitMQSubscriber(create_rabbitmq_connection())
-    proof_subscriber = RabbitMQSubscriber(create_rabbitmq_connection())
 
     # Create message consumers
     store_consumer = MessageConsumer(
