@@ -22,53 +22,68 @@ jobs:
       - run: uv sync --dev
 
       - name: Run mutation tests
-        run: make mutate
-
-      - name: Show mutmut results
         run: |
-          echo "=== Raw mutmut results ==="
-          uv run mutmut results || true
-          echo "=== End results ==="
+          # Run mutmut and save output to parse later
+          make mutate 2>&1 | tee mutmut_run.log
+          # Show final lines for debugging
+          echo "=== Final output ==="
+          tail -3 mutmut_run.log
 
       - name: Calculate mutation score
         id: score
         run: |
-          # Use Python to reliably parse mutmut results with unicode
+          # Parse the final status line from mutmut run output
+          # Format: "⠇ 217/217  🎉 216 🫥 0  ⏰ 0  🤔 0  🙁 1  🔇 0"
+          # The numbers after emojis are: killed, survived, timeout, suspicious, not_covered, skipped
           uv run python << 'PYTHON'
-          import subprocess
           import re
+          import os
 
-          result = subprocess.run(
-              ["uv", "run", "mutmut", "results"],
-              capture_output=True, text=True
-          )
-          output = result.stdout + result.stderr
+          with open("mutmut_run.log", "r") as f:
+              content = f.read()
 
-          print("=== Python captured output ===")
-          print(repr(output[:2000]))
-          print("=== End captured ===")
+          # Find lines with the progress format (N/N followed by emoji stats)
+          # Match pattern like "217/217" followed by numbers
+          lines = content.split('\n')
+          final_line = ""
+          for line in reversed(lines):
+              if re.search(r'\d+/\d+.*\d+.*\d+', line):
+                  final_line = line
+                  break
 
-          killed = len(re.findall(r': killed', output))
-          timeout = len(re.findall(r': timeout', output))
-          survived = len(re.findall(r': survived', output))
+          print(f"Final line: {final_line}")
 
-          killed_total = killed + timeout
-          total = killed_total + survived
+          # Extract all numbers from the line
+          numbers = re.findall(r'\d+', final_line)
+          print(f"Numbers found: {numbers}")
 
-          if total > 0:
-              score = (killed_total * 100) // total
+          # Format: progress/total, killed, survived, timeout, suspicious, not_covered, skipped
+          # Numbers[0]=progress, [1]=total, [2]=killed, [3]=survived, [4]=timeout, ...
+          if len(numbers) >= 5:
+              total_mutants = int(numbers[1])
+              killed = int(numbers[2])
+              survived = int(numbers[3])
+              timeout = int(numbers[4])
+
+              killed_total = killed + timeout
+              total = killed_total + survived
+
+              if total > 0:
+                  score = (killed_total * 100) // total
+              else:
+                  score = 100
           else:
-              score = 100
+              print("Could not parse mutation results")
+              score = 0
+              killed_total = 0
+              survived = 0
+              total = 0
 
           color = "brightgreen" if score >= 80 else "yellow" if score >= 60 else "red"
 
-          print(f"Killed: {killed_total} (killed={killed}, timeout={timeout})")
-          print(f"Survived: {survived}")
-          print(f"Total: {total}")
-          print(f"Score: {score}%")
+          print(f"Killed: {killed_total}, Survived: {survived}, Total: {total}")
+          print(f"Mutation Score: {score}%")
 
-          # Write to GitHub output
-          import os
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"score={score}\n")
               f.write(f"color={color}\n")
