@@ -22,51 +22,47 @@ jobs:
       - run: uv sync --dev
 
       - name: Run mutation tests
-        id: mutate
-        run: |
-          # Capture output to parse results
-          make mutate 2>&1 | tee mutmut_output.txt
-          # Extract final status line (e.g., "217/217  🎉 216 🫥 0  ⏰ 0 ...")
-          tail -5 mutmut_output.txt
+        run: make mutate
 
       - name: Calculate mutation score
         id: score
         run: |
-          # Parse the emoji output from mutmut run
-          # Format: "217/217  🎉 216 🫥 0  ⏰ 0  🤔 0  🙁 1  🔇 0"
-          FINAL_LINE=$(grep -E "🎉.*🫥" mutmut_output.txt | tail -1)
-          echo "Final line: $FINAL_LINE"
+          # Use Python to reliably parse mutmut results with unicode
+          uv run python << 'PYTHON'
+          import subprocess
+          import re
 
-          # Extract counts using grep -oE
-          KILLED=$(echo "$FINAL_LINE" | grep -oE "🎉 [0-9]+" | grep -oE "[0-9]+" || echo 0)
-          SURVIVED=$(echo "$FINAL_LINE" | grep -oE "🫥 [0-9]+" | grep -oE "[0-9]+" || echo 0)
-          TIMEOUT=$(echo "$FINAL_LINE" | grep -oE "⏰ [0-9]+" | grep -oE "[0-9]+" || echo 0)
+          result = subprocess.run(
+              ["uv", "run", "mutmut", "results"],
+              capture_output=True, text=True
+          )
+          output = result.stdout + result.stderr
 
-          # Killed includes timeouts
-          KILLED=$((KILLED + TIMEOUT))
-          TOTAL=$((KILLED + SURVIVED))
+          killed = len(re.findall(r': killed', output))
+          timeout = len(re.findall(r': timeout', output))
+          survived = len(re.findall(r': survived', output))
 
-          echo "Killed: $KILLED, Survived: $SURVIVED, Total: $TOTAL"
+          killed_total = killed + timeout
+          total = killed_total + survived
 
-          if [ "$TOTAL" -gt 0 ]; then
-            SCORE=$((KILLED * 100 / TOTAL))
-          else
-            SCORE=100
-          fi
+          if total > 0:
+              score = (killed_total * 100) // total
+          else:
+              score = 100
 
-          # Determine color based on score
-          if [ "$SCORE" -ge 80 ]; then
-            COLOR="brightgreen"
-          elif [ "$SCORE" -ge 60 ]; then
-            COLOR="yellow"
-          else
-            COLOR="red"
-          fi
+          color = "brightgreen" if score >= 80 else "yellow" if score >= 60 else "red"
 
-          echo "score=$SCORE" >> $GITHUB_OUTPUT
-          echo "color=$COLOR" >> $GITHUB_OUTPUT
+          print(f"Killed: {killed_total} (killed={killed}, timeout={timeout})")
+          print(f"Survived: {survived}")
+          print(f"Total: {total}")
+          print(f"Score: {score}%")
 
-          echo "Mutation Score: $SCORE% ($KILLED/$TOTAL mutants killed)"
+          # Write to GitHub output
+          import os
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"score={score}\n")
+              f.write(f"color={color}\n")
+          PYTHON
 
       - name: Update badge JSON
         run: |
