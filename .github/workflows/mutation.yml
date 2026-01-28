@@ -30,9 +30,13 @@ jobs:
           # Parse mutmut results and calculate score
           RESULTS=$(uv run mutmut results 2>/dev/null || true)
 
-          # Count mutants by status
-          KILLED=$(echo "$RESULTS" | grep -c ": killed\|: segfault\|: timeout" || echo 0)
-          SURVIVED=$(echo "$RESULTS" | grep -c ": survived" || echo 0)
+          # Count mutants by status (grep -c returns 1 on no match, so use || true)
+          KILLED=$(echo "$RESULTS" | grep -cE ": killed|: timeout" || true)
+          SURVIVED=$(echo "$RESULTS" | grep -c ": survived" || true)
+
+          # Ensure we have numbers (default to 0 if empty)
+          KILLED=${KILLED:-0}
+          SURVIVED=${SURVIVED:-0}
           TOTAL=$((KILLED + SURVIVED))
 
           if [ "$TOTAL" -gt 0 ]; then
