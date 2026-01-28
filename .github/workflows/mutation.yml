@@ -24,6 +24,12 @@ jobs:
       - name: Run mutation tests
         run: make mutate
 
+      - name: Show mutmut results
+        run: |
+          echo "=== Raw mutmut results ==="
+          uv run mutmut results || true
+          echo "=== End results ==="
+
       - name: Calculate mutation score
         id: score
         run: |
@@ -37,6 +43,10 @@ jobs:
               capture_output=True, text=True
           )
           output = result.stdout + result.stderr
+
+          print("=== Python captured output ===")
+          print(repr(output[:2000]))
+          print("=== End captured ===")
 
           killed = len(re.findall(r': killed', output))
           timeout = len(re.findall(r': timeout', output))
