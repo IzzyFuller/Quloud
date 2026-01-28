@@ -16,3 +16,9 @@ wheels/
 .coverage
 htmlcov/
 test_data/
+
+# Mutation testing
+.mutmut-cache/
+mutants/
+html/
+mutmut-results.xml

@@ -1,0 +1,78 @@
+name: Mutation Testing
+
+on:
+  schedule:
+    - cron: '0 2 * * 0'  # Weekly Sunday 2am UTC
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/quloud/core/**'
+      - 'tests/**'
+
+jobs:
+  mutation-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv python install 3.13
+      - run: uv sync --dev
+
+      - name: Run mutation tests
+        run: make mutate
+
+      - name: Calculate mutation score
+        id: score
+        run: |
+          # Parse mutmut results and calculate score
+          RESULTS=$(uv run mutmut results 2>/dev/null || true)
+
+          # Count mutants by status
+          KILLED=$(echo "$RESULTS" | grep -c ": killed\|: segfault\|: timeout" || echo 0)
+          SURVIVED=$(echo "$RESULTS" | grep -c ": survived" || echo 0)
+          TOTAL=$((KILLED + SURVIVED))
+
+          if [ "$TOTAL" -gt 0 ]; then
+            SCORE=$((KILLED * 100 / TOTAL))
+          else
+            SCORE=0
+          fi
+
+          # Determine color based on score
+          if [ "$SCORE" -ge 80 ]; then
+            COLOR="brightgreen"
+          elif [ "$SCORE" -ge 60 ]; then
+            COLOR="yellow"
+          else
+            COLOR="red"
+          fi
+
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+          echo "color=$COLOR" >> $GITHUB_OUTPUT
+          echo "killed=$KILLED" >> $GITHUB_OUTPUT
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+
+          echo "Mutation Score: $SCORE% ($KILLED/$TOTAL mutants killed)"
+
+      - name: Update badge JSON
+        run: |
+          mkdir -p .github/badges
+          cat > .github/badges/mutation.json << EOF
+          {
+            "schemaVersion": 1,
+            "label": "mutation score",
+            "message": "${{ steps.score.outputs.score }}%",
+            "color": "${{ steps.score.outputs.color }}"
+          }
+          EOF
+
+      - name: Commit badge
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/badges/mutation.json
+          git diff --staged --quiet || git commit -m "Update mutation score badge: ${{ steps.score.outputs.score }}%"
+          git push
