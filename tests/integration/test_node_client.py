@@ -71,41 +71,27 @@ class TestStoreBlob:
         assert "blob123" in storage.stored
         assert storage.stored["blob123"] == b"my data"
 
-    def test_no_publish_when_zero_replicas(
-        self, client: NodeClient, publisher: FakePublisher
+    @pytest.mark.parametrize("replicas", [0, 1, 2, 3, 5])
+    def test_publishes_n_requests_for_n_replicas(
+        self,
+        client: NodeClient,
+        storage: FakeStorage,
+        publisher: FakePublisher,
+        replicas: int,
     ) -> None:
-        """Client does not publish when replicas=0 (local only)."""
-        client.store_blob(blob_id="local-only", data=b"data", replicas=0)
-
-        assert len(publisher.published) == 0
-
-    def test_publishes_one_request_for_one_replica(
-        self, client: NodeClient, storage: FakeStorage, publisher: FakePublisher
-    ) -> None:
-        """Client publishes exactly 1 StoreRequest for 1 replica."""
-        client.store_blob(blob_id="blob-one", data=b"single replica", replicas=1)
-
-        assert "blob-one" in storage.stored
-        assert len(publisher.published) == 1
-        topic, data = publisher.published[0]
-        assert topic == "quloud-store"
-
-    def test_publishes_n_requests_for_replicas(
-        self, client: NodeClient, storage: FakeStorage, publisher: FakePublisher
-    ) -> None:
-        """Client publishes n StoreRequests for n replicas."""
-        client.store_blob(blob_id="blob456", data=b"redundant", replicas=3)
+        """Client publishes exactly n StoreRequests for n replicas."""
+        client.store_blob(blob_id="test-blob", data=b"data", replicas=replicas)
 
         # Always stored locally
-        assert "blob456" in storage.stored
+        assert "test-blob" in storage.stored
 
-        # Plus 3 remote replicas
-        assert len(publisher.published) == 3
-        for topic, data in publisher.published:
+        # Exactly n remote replica requests
+        assert len(publisher.published) == replicas
+        for topic, msg in publisher.published:
             assert topic == "quloud-store"
-            request = StoreRequestMessage.model_validate_json(data)
-            assert request.blob_id == "blob456"
-            assert request.data == b"redundant"
+            request = StoreRequestMessage.model_validate_json(msg)
+            assert request.blob_id == "test-blob"
+            assert request.data == b"data"
 
     def test_default_replicas_is_zero(
         self, client: NodeClient, publisher: FakePublisher
