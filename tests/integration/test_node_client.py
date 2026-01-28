@@ -79,6 +79,17 @@ class TestStoreBlob:
 
         assert len(publisher.published) == 0
 
+    def test_publishes_one_request_for_one_replica(
+        self, client: NodeClient, storage: FakeStorage, publisher: FakePublisher
+    ) -> None:
+        """Client publishes exactly 1 StoreRequest for 1 replica."""
+        client.store_blob(blob_id="blob-one", data=b"single replica", replicas=1)
+
+        assert "blob-one" in storage.stored
+        assert len(publisher.published) == 1
+        topic, data = publisher.published[0]
+        assert topic == "quloud-store"
+
     def test_publishes_n_requests_for_replicas(
         self, client: NodeClient, storage: FakeStorage, publisher: FakePublisher
     ) -> None:

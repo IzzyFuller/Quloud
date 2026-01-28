@@ -99,6 +99,7 @@ class TestRetrieveRequestHandler:
 
         assert len(publisher.published) == 1
         topic, data = publisher.published[0]
+        assert topic == "quloud-responses"
         response = RetrieveResponseMessage.model_validate_json(data)
         assert response.blob_id == "existing-blob"
         assert response.node_id == "test-node-001"
@@ -114,9 +115,9 @@ class TestRetrieveRequestHandler:
         handler.handle(request)
 
         assert len(publisher.published) == 1
-        response = RetrieveResponseMessage.model_validate_json(
-            publisher.published[0][1]
-        )
+        topic, data = publisher.published[0]
+        assert topic == "quloud-responses"
+        response = RetrieveResponseMessage.model_validate_json(data)
         assert response.blob_id == "nonexistent"
         assert response.found is False
         assert response.data is None

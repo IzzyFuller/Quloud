@@ -99,7 +99,9 @@ class TestProofRequestHandler:
         handler.handle(request)
 
         assert len(publisher.published) == 1
-        response = ProofResponseMessage.model_validate_json(publisher.published[0][1])
+        topic, data = publisher.published[0]
+        assert topic == "quloud.proof.responses"
+        response = ProofResponseMessage.model_validate_json(data)
         assert response.blob_id == "proof-blob"
         assert response.node_id == "test-node-001"
         assert response.found is True
@@ -140,7 +142,9 @@ class TestProofRequestHandler:
 
         handler.handle(request)
 
-        response = ProofResponseMessage.model_validate_json(publisher.published[0][1])
+        topic, data = publisher.published[0]
+        assert topic == "quloud.proof.responses"
+        response = ProofResponseMessage.model_validate_json(data)
         assert response.blob_id == "missing"
         assert response.found is False
         assert response.proof is None

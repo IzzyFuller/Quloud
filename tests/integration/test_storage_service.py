@@ -74,6 +74,20 @@ class TestStorageService:
 
         assert result == data
 
+    def test_creates_nested_parent_directories(self, tmp_path: Path) -> None:
+        """Storage creates nested parent directories when they don't exist."""
+        # Use a deeply nested path where parents don't exist
+        nested_dir = tmp_path / "level1" / "level2" / "level3" / "blobs"
+        adapter = FilesystemStorageAdapter(nested_dir)
+        service = StorageService(adapter)
+
+        # Should not raise - parents=True allows creating intermediate dirs
+        service.store("nested-blob", b"nested data")
+        result = service.retrieve("nested-blob")
+
+        assert result == b"nested data"
+        assert nested_dir.exists()
+
 
 class TestProofOfStorage:
     """Tests for proof-of-storage operations."""

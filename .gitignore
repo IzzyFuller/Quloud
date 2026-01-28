@@ -22,3 +22,4 @@ test_data/
 mutants/
 html/
 mutmut-results.xml
+data/
