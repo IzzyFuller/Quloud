@@ -1,5 +1,7 @@
 """Handler for RetrieveRequest messages."""
 
+import logging
+
 from synapse.protocols.publisher import PubSubPublisher
 
 from quloud.core.encryption_service import EncryptionService
@@ -8,6 +10,8 @@ from quloud.services.message_contracts import (
     RetrieveRequestMessage,
     RetrieveResponseMessage,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class RetrieveRequestHandler:
@@ -50,13 +54,16 @@ class RetrieveRequestHandler:
         Args:
             request: The validated RetrieveRequestMessage.
         """
+        logger.info("Retrieve request received for blob_id=%s", request.blob_id)
         encrypted_data = self._storage.retrieve(request.blob_id)
         if encrypted_data is None:
+            logger.warning("Blob not found: blob_id=%s", request.blob_id)
             data = None
             found = False
         else:
             data = self._encryption.decrypt(self._node_key, encrypted_data)
             found = True
+            logger.info("Retrieved blob_id=%s", request.blob_id)
 
         response = RetrieveResponseMessage(
             blob_id=request.blob_id,
@@ -67,3 +74,4 @@ class RetrieveRequestHandler:
         self._publisher.publish(
             self._response_topic, response.model_dump_json().encode()
         )
+        logger.info("Retrieve response published for blob_id=%s", request.blob_id)

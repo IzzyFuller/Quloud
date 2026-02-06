@@ -2,6 +2,7 @@
 
 from synapse.protocols.publisher import PubSubPublisher
 
+from quloud.core.encryption_service import EncryptionService
 from quloud.core.storage_service import StorageService
 from quloud.services.message_contracts import (
     StoreRequestMessage,
@@ -20,6 +21,8 @@ class NodeClient:
     def __init__(
         self,
         storage: StorageService,
+        encryption: EncryptionService,
+        node_key: bytes,
         publisher: PubSubPublisher,
         store_topic: str,
         retrieve_topic: str,
@@ -29,12 +32,16 @@ class NodeClient:
 
         Args:
             storage: Storage service for this node.
+            encryption: Encryption service for this node.
+            node_key: This node's symmetric encryption key.
             publisher: Publisher for sending messages.
             store_topic: Topic for StoreRequest messages.
             retrieve_topic: Topic for RetrieveRequest messages.
             proof_topic: Topic for ProofOfStorageRequest messages.
         """
         self._storage = storage
+        self._encryption = encryption
+        self._node_key = node_key
         self._publisher = publisher
         self._store_topic = store_topic
         self._retrieve_topic = retrieve_topic
@@ -45,11 +52,12 @@ class NodeClient:
 
         Args:
             blob_id: Unique identifier for the blob.
-            data: The data to store (will be stored as-is locally).
+            data: The plaintext data to store (encrypted before local storage).
             replicas: Number of additional remote copies (default 0 = local only).
         """
-        # Always store on this node first
-        self._storage.store(blob_id, data)
+        # Encrypt before local storage
+        encrypted = self._encryption.encrypt(self._node_key, data)
+        self._storage.store(blob_id, encrypted)
 
         # Request remote replicas if any
         if replicas > 0:

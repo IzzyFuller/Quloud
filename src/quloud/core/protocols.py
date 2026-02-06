@@ -37,11 +37,3 @@ class StorageProtocol(Protocol):
     def retrieve(self, blob_id: str) -> bytes | None:
         """Retrieve data by ID. Returns None if not found."""
         ...
-
-    def delete(self, blob_id: str) -> bool:
-        """Delete data. Returns True if deleted, False if not found."""
-        ...
-
-    def exists(self, blob_id: str) -> bool:
-        """Check if data exists."""
-        ...

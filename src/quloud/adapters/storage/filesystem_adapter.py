@@ -49,31 +49,3 @@ class FilesystemStorageAdapter:
         if not blob_path.exists():
             return None
         return blob_path.read_bytes()
-
-    def delete(self, blob_id: str) -> bool:
-        """
-        Delete data from the filesystem.
-
-        Args:
-            blob_id: Unique identifier for the data.
-
-        Returns:
-            True if deleted, False if data didn't exist.
-        """
-        blob_path = self._get_blob_path(blob_id)
-        if not blob_path.exists():
-            return False
-        blob_path.unlink()
-        return True
-
-    def exists(self, blob_id: str) -> bool:
-        """
-        Check if data exists.
-
-        Args:
-            blob_id: Unique identifier for the data.
-
-        Returns:
-            True if data exists, False otherwise.
-        """
-        return self._get_blob_path(blob_id).exists()

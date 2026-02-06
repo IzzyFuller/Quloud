@@ -3,11 +3,14 @@
 Wires up all components and runs the message consumers.
 """
 
+import logging
 import os
 import signal
 import threading
 import uuid
+from collections.abc import Callable
 from pathlib import Path
+from typing import NamedTuple
 
 import pika
 
@@ -26,6 +29,18 @@ from quloud.services.message_contracts import (
 from quloud.services.store_request_handler import StoreRequestHandler
 from quloud.services.retrieve_request_handler import RetrieveRequestHandler
 from quloud.services.proof_request_handler import ProofRequestHandler
+
+logger = logging.getLogger(__name__)
+
+
+class NodeHandle(NamedTuple):
+    """Everything returned by start_node for cleanup and further wiring."""
+
+    consumers: list[MessageConsumer]
+    threads: list[threading.Thread]
+    node_key: bytes
+    storage_service: StorageService
+    encryption_service: EncryptionService
 
 
 def create_rabbitmq_connection() -> pika.BlockingConnection:
@@ -64,31 +79,33 @@ def load_or_generate_key(
 ) -> bytes:
     """Load node key from file, or generate and save a new one."""
     if key_file.exists():
-        print(f"Loading node key from {key_file}")
+        logger.info("Loading node key from %s", key_file)
         return key_file.read_bytes()
 
-    print(f"Generating new node key, saving to {key_file}")
+    logger.info("Generating new node key, saving to %s", key_file)
     key = encryption_service.generate_key()
     key_file.parent.mkdir(parents=True, exist_ok=True)
     key_file.write_bytes(key)
     return key
 
 
-def main() -> None:
-    """Run the quloud storage node."""
-    # Configuration from environment
-    node_id = os.environ.get("NODE_ID", f"node-{uuid.uuid4().hex[:8]}")
-    storage_dir = os.environ.get("STORAGE_DIR", "./data")
-    key_file = Path(os.environ.get("NODE_KEY_FILE", f"{storage_dir}/node.key"))
+def start_node(
+    make_connection: Callable[[], pika.BlockingConnection],
+    storage_dir: str | Path,
+    node_id: str = "node",
+    key_file: Path | None = None,
+) -> NodeHandle:
+    """Wire up and start a Quloud storage node.
 
-    print(f"Starting Quloud node: {node_id}")
-    print(f"Storage directory: {storage_dir}")
+    Args:
+        make_connection: Factory for creating RabbitMQ connections.
+        storage_dir: Directory for local blob storage.
+        node_id: Unique identifier for this node.
+        key_file: Path to node key file. If None, generates an ephemeral key.
 
-    # Create RabbitMQ connection and setup queues
-    connection = create_rabbitmq_connection()
-    channel = connection.channel()
-    setup_queues(channel)
-
+    Returns:
+        NodeHandle with consumers, threads, and services for cleanup.
+    """
     # Create adapters
     storage_adapter = FilesystemStorageAdapter(base_dir=storage_dir)
     encryption_adapter = PyNaClEncryptionAdapter()
@@ -98,23 +115,30 @@ def main() -> None:
     encryption_service = EncryptionService(encryption=encryption_adapter)
 
     # Load or generate node encryption key
-    node_key = load_or_generate_key(key_file, encryption_service)
+    if key_file is not None:
+        node_key = load_or_generate_key(key_file, encryption_service)
+    else:
+        node_key = encryption_service.generate_key()
 
-    # Create subscribers with shared publisher per connection
-    # Each handler gets a publisher on its subscriber's connection to avoid idle timeouts
-    store_connection = create_rabbitmq_connection()
+    # Setup queues on a dedicated connection
+    setup_connection = make_connection()
+    setup_queues(setup_connection.channel())
+    setup_connection.close()
+
+    # Each handler gets its own connection to avoid idle timeouts
+    store_connection = make_connection()
     store_subscriber = RabbitMQSubscriber(store_connection)
     store_publisher = RabbitMQPublisher(store_connection)
 
-    retrieve_connection = create_rabbitmq_connection()
+    retrieve_connection = make_connection()
     retrieve_subscriber = RabbitMQSubscriber(retrieve_connection)
     retrieve_publisher = RabbitMQPublisher(retrieve_connection)
 
-    proof_connection = create_rabbitmq_connection()
+    proof_connection = make_connection()
     proof_subscriber = RabbitMQSubscriber(proof_connection)
     proof_publisher = RabbitMQPublisher(proof_connection)
 
-    # Create request handlers (storage node side)
+    # Create request handlers
     store_handler = StoreRequestHandler(
         storage=storage_service,
         encryption=encryption_service,
@@ -140,38 +164,28 @@ def main() -> None:
         response_topic="quloud.proof.responses",
     )
 
-    # Create message consumers
-    store_consumer = MessageConsumer(
-        subscription="quloud.store.requests",
-        handler=store_handler,
-        request_model=StoreRequestMessage,
-        subscriber=store_subscriber,
-    )
-    retrieve_consumer = MessageConsumer(
-        subscription="quloud.retrieve.requests",
-        handler=retrieve_handler,
-        request_model=RetrieveRequestMessage,
-        subscriber=retrieve_subscriber,
-    )
-    proof_consumer = MessageConsumer(
-        subscription="quloud.proof.requests",
-        handler=proof_handler,
-        request_model=ProofRequestMessage,
-        subscriber=proof_subscriber,
-    )
+    # Create and start message consumers
+    consumers = [
+        MessageConsumer(
+            subscription="quloud.store.requests",
+            handler=store_handler,
+            request_model=StoreRequestMessage,
+            subscriber=store_subscriber,
+        ),
+        MessageConsumer(
+            subscription="quloud.retrieve.requests",
+            handler=retrieve_handler,
+            request_model=RetrieveRequestMessage,
+            subscriber=retrieve_subscriber,
+        ),
+        MessageConsumer(
+            subscription="quloud.proof.requests",
+            handler=proof_handler,
+            request_model=ProofRequestMessage,
+            subscriber=proof_subscriber,
+        ),
+    ]
 
-    consumers = [store_consumer, retrieve_consumer, proof_consumer]
-
-    # Signal handler for graceful shutdown
-    def shutdown(signum: int, frame: object) -> None:
-        print("\nShutting down...")
-        for consumer in consumers:
-            consumer.stop()
-
-    signal.signal(signal.SIGINT, shutdown)
-    signal.signal(signal.SIGTERM, shutdown)
-
-    # Start consumers in threads
     threads = []
     for consumer in consumers:
         consumer.start()
@@ -179,19 +193,50 @@ def main() -> None:
         thread.start()
         threads.append(thread)
 
-    print("Listening for messages on queues:")
-    print("  - quloud.store.requests")
-    print("  - quloud.retrieve.requests")
-    print("  - quloud.proof.requests")
+    logger.info("Node %s listening on request queues", node_id)
+
+    return NodeHandle(
+        consumers=consumers,
+        threads=threads,
+        node_key=node_key,
+        storage_service=storage_service,
+        encryption_service=encryption_service,
+    )
+
+
+def main() -> None:
+    """Run the quloud storage node."""
+    node_id = os.environ.get("NODE_ID", f"node-{uuid.uuid4().hex[:8]}")
+    storage_dir = os.environ.get("STORAGE_DIR", "./data")
+    key_file = Path(os.environ.get("NODE_KEY_FILE", f"{storage_dir}/node.key"))
+
+    logger.info("Starting Quloud node: %s", node_id)
+    logger.info("Storage directory: %s", storage_dir)
+
+    handle = start_node(
+        make_connection=create_rabbitmq_connection,
+        storage_dir=storage_dir,
+        node_id=node_id,
+        key_file=key_file,
+    )
+
+    # Signal handler for graceful shutdown
+    def shutdown(signum: int, frame: object) -> None:
+        logger.info("Shutting down...")
+        for consumer in handle.consumers:
+            consumer.stop()
+
+    signal.signal(signal.SIGINT, shutdown)
+    signal.signal(signal.SIGTERM, shutdown)
 
     # Wait for threads
     try:
-        for thread in threads:
+        for thread in handle.threads:
             thread.join()
     except KeyboardInterrupt:
         pass
 
-    print("Node stopped.")
+    logger.info("Node stopped.")
 
 
 if __name__ == "__main__":

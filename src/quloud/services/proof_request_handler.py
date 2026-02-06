@@ -1,10 +1,14 @@
 """Handler for ProofOfStorageRequest messages."""
 
+import logging
+
 from synapse.protocols.publisher import PubSubPublisher
 
 from quloud.core.encryption_service import EncryptionService
 from quloud.core.storage_service import StorageService
 from quloud.services.message_contracts import ProofRequestMessage, ProofResponseMessage
+
+logger = logging.getLogger(__name__)
 
 
 class ProofRequestHandler:
@@ -50,8 +54,10 @@ class ProofRequestHandler:
         Args:
             request: The validated ProofRequestMessage.
         """
+        logger.info("Proof request received for blob_id=%s", request.blob_id)
         encrypted_data = self._storage.retrieve(request.blob_id)
         if encrypted_data is None:
+            logger.warning("Blob not found: blob_id=%s", request.blob_id)
             response = ProofResponseMessage(
                 blob_id=request.blob_id,
                 node_id=self._node_id,
@@ -64,6 +70,7 @@ class ProofRequestHandler:
                 self._node_key, encrypted_data
             )
             result = self._storage.compute_proof(owner_encrypted_data, request.seed)
+            logger.info("Proof computed for blob_id=%s", request.blob_id)
             response = ProofResponseMessage(
                 blob_id=request.blob_id,
                 node_id=self._node_id,
@@ -74,3 +81,4 @@ class ProofRequestHandler:
         self._publisher.publish(
             self._response_topic, response.model_dump_json().encode()
         )
+        logger.info("Proof response published for blob_id=%s", request.blob_id)

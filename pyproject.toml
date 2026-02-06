@@ -32,8 +32,10 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+filterwarnings = ["ignore::pytest.PytestUnhandledThreadExceptionWarning"]
 
 [tool.coverage.run]
+source = ["src/quloud"]
 omit = [
     "*/__init__.py",
     "*/protocols.py",
@@ -80,11 +82,10 @@ paths_to_mutate = [
     "src/quloud/services/node_client.py",
     "src/quloud/services/message_contracts.py",
     "src/quloud/services/store_request_handler.py",
-    "src/quloud/services/store_response_handler.py",
     "src/quloud/services/retrieve_request_handler.py",
-    "src/quloud/services/retrieve_response_handler.py",
     "src/quloud/services/proof_request_handler.py",
     "src/quloud/services/proof_response_handler.py",
 ]
 tests_dir = ["tests"]
 also_copy = ["src"]
+test_command = "python -m pytest tests/e2e/ -x --no-header -q"
