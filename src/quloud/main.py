@@ -18,8 +18,10 @@ from synapse.adapters.rabbitmq import RabbitMQPublisher, RabbitMQSubscriber
 from synapse.consumer.message_consumer import MessageConsumer
 
 from quloud.adapters.encryption.pynacl_adapter import PyNaClEncryptionAdapter
+from quloud.adapters.key_store.filesystem_adapter import FilesystemKeyStoreAdapter
 from quloud.adapters.storage.filesystem_adapter import FilesystemStorageAdapter
 from quloud.core.encryption_service import EncryptionService
+from quloud.core.key_store_service import KeyStoreService
 from quloud.core.storage_service import StorageService
 from quloud.services.message_contracts import (
     StoreRequestMessage,
@@ -38,9 +40,9 @@ class NodeHandle(NamedTuple):
 
     consumers: list[MessageConsumer]
     threads: list[threading.Thread]
-    node_key: bytes
     storage_service: StorageService
     encryption_service: EncryptionService
+    key_store_service: KeyStoreService
 
 
 def create_rabbitmq_connection() -> pika.BlockingConnection:
@@ -74,26 +76,10 @@ def setup_queues(channel: pika.channel.Channel) -> None:
         channel.queue_declare(queue=queue, durable=True)
 
 
-def load_or_generate_key(
-    key_file: Path, encryption_service: EncryptionService
-) -> bytes:
-    """Load node key from file, or generate and save a new one."""
-    if key_file.exists():
-        logger.info("Loading node key from %s", key_file)
-        return key_file.read_bytes()
-
-    logger.info("Generating new node key, saving to %s", key_file)
-    key = encryption_service.generate_key()
-    key_file.parent.mkdir(parents=True, exist_ok=True)
-    key_file.write_bytes(key)
-    return key
-
-
 def start_node(
     make_connection: Callable[[], pika.BlockingConnection],
     storage_dir: str | Path,
     node_id: str = "node",
-    key_file: Path | None = None,
 ) -> NodeHandle:
     """Wire up and start a Quloud storage node.
 
@@ -101,7 +87,6 @@ def start_node(
         make_connection: Factory for creating RabbitMQ connections.
         storage_dir: Directory for local blob storage.
         node_id: Unique identifier for this node.
-        key_file: Path to node key file. If None, generates an ephemeral key.
 
     Returns:
         NodeHandle with consumers, threads, and services for cleanup.
@@ -109,16 +94,12 @@ def start_node(
     # Create adapters
     storage_adapter = FilesystemStorageAdapter(base_dir=storage_dir)
     encryption_adapter = PyNaClEncryptionAdapter()
+    key_store_adapter = FilesystemKeyStoreAdapter(base_dir=storage_dir)
 
     # Create services
     storage_service = StorageService(storage=storage_adapter)
     encryption_service = EncryptionService(encryption=encryption_adapter)
-
-    # Load or generate node encryption key
-    if key_file is not None:
-        node_key = load_or_generate_key(key_file, encryption_service)
-    else:
-        node_key = encryption_service.generate_key()
+    key_store_service = KeyStoreService(key_store=key_store_adapter)
 
     # Setup queues on a dedicated connection
     setup_connection = make_connection()
@@ -142,7 +123,7 @@ def start_node(
     store_handler = StoreRequestHandler(
         storage=storage_service,
         encryption=encryption_service,
-        node_key=node_key,
+        key_store=key_store_service,
         publisher=store_publisher,
         node_id=node_id,
         response_topic="quloud.store.responses",
@@ -150,7 +131,7 @@ def start_node(
     retrieve_handler = RetrieveRequestHandler(
         storage=storage_service,
         encryption=encryption_service,
-        node_key=node_key,
+        key_store=key_store_service,
         publisher=retrieve_publisher,
         node_id=node_id,
         response_topic="quloud.retrieve.responses",
@@ -158,7 +139,7 @@ def start_node(
     proof_handler = ProofRequestHandler(
         storage=storage_service,
         encryption=encryption_service,
-        node_key=node_key,
+        key_store=key_store_service,
         publisher=proof_publisher,
         node_id=node_id,
         response_topic="quloud.proof.responses",
@@ -198,9 +179,9 @@ def start_node(
     return NodeHandle(
         consumers=consumers,
         threads=threads,
-        node_key=node_key,
         storage_service=storage_service,
         encryption_service=encryption_service,
+        key_store_service=key_store_service,
     )
 
 
@@ -208,7 +189,6 @@ def main() -> None:
     """Run the quloud storage node."""
     node_id = os.environ.get("NODE_ID", f"node-{uuid.uuid4().hex[:8]}")
     storage_dir = os.environ.get("STORAGE_DIR", "./data")
-    key_file = Path(os.environ.get("NODE_KEY_FILE", f"{storage_dir}/node.key"))
 
     logger.info("Starting Quloud node: %s", node_id)
     logger.info("Storage directory: %s", storage_dir)
@@ -217,7 +197,6 @@ def main() -> None:
         make_connection=create_rabbitmq_connection,
         storage_dir=storage_dir,
         node_id=node_id,
-        key_file=key_file,
     )
 
     # Signal handler for graceful shutdown

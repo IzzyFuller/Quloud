@@ -3,6 +3,7 @@
 from synapse.protocols.publisher import PubSubPublisher
 
 from quloud.core.encryption_service import EncryptionService
+from quloud.core.key_store_service import KeyStoreService
 from quloud.core.storage_service import StorageService
 from quloud.services.message_contracts import (
     StoreRequestMessage,
@@ -22,7 +23,7 @@ class NodeClient:
         self,
         storage: StorageService,
         encryption: EncryptionService,
-        node_key: bytes,
+        key_store: KeyStoreService,
         publisher: PubSubPublisher,
         store_topic: str,
         retrieve_topic: str,
@@ -33,7 +34,7 @@ class NodeClient:
         Args:
             storage: Storage service for this node.
             encryption: Encryption service for this node.
-            node_key: This node's symmetric encryption key.
+            key_store: Per-document key store service.
             publisher: Publisher for sending messages.
             store_topic: Topic for StoreRequest messages.
             retrieve_topic: Topic for RetrieveRequest messages.
@@ -41,7 +42,7 @@ class NodeClient:
         """
         self._storage = storage
         self._encryption = encryption
-        self._node_key = node_key
+        self._key_store = key_store
         self._publisher = publisher
         self._store_topic = store_topic
         self._retrieve_topic = retrieve_topic
@@ -55,9 +56,10 @@ class NodeClient:
             data: The plaintext data to store (encrypted before local storage).
             replicas: Number of additional remote copies (default 0 = local only).
         """
-        # Encrypt before local storage
-        encrypted = self._encryption.encrypt(self._node_key, data)
+        key = self._encryption.generate_key()
+        encrypted = self._encryption.encrypt(key, data)
         self._storage.store(blob_id, encrypted)
+        self._key_store.store_key(blob_id, key)
 
         # Request remote replicas if any
         if replicas > 0:
@@ -87,3 +89,14 @@ class NodeClient:
         """
         request = ProofRequestMessage(blob_id=blob_id, seed=seed)
         self._publisher.publish(self._proof_topic, request.model_dump_json().encode())
+
+    def delete_blob(self, blob_id: str) -> None:
+        """Delete a blob by shredding its encryption key (crypto erasure).
+
+        The encrypted blob data may remain on disk but is permanently
+        inaccessible without its per-document key.
+
+        Args:
+            blob_id: Unique identifier for the blob to delete.
+        """
+        self._key_store.delete_key(blob_id)

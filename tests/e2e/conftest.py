@@ -118,7 +118,7 @@ def owner_client(quloud_node, storage_dir):
     return NodeClient(
         storage=quloud_node.storage_service,
         encryption=quloud_node.encryption_service,
-        node_key=quloud_node.node_key,
+        key_store=quloud_node.key_store_service,
         publisher=publisher,
         store_topic="quloud.store.requests",
         retrieve_topic="quloud.retrieve.requests",

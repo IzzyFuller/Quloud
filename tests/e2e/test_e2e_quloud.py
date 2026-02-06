@@ -5,6 +5,7 @@ Real RabbitMQ, real encryption, real filesystem storage.
 
 import hashlib
 import os
+from pathlib import Path
 
 
 def test_store_and_prove(owner_client, proof_capture):
@@ -71,3 +72,36 @@ def test_proof_missing_blob(owner_client, proof_capture):
     response = proof_capture.wait()
     assert response.found is False
     assert response.proof is None
+
+
+def test_store_uses_per_document_key(owner_client, storage_dir):
+    """Storing a blob creates a per-document .key file alongside the .blob file."""
+    blob_id = "e2e-per-doc-key"
+    owner_client.store_blob(blob_id, b"per-document key test")
+
+    key_path = Path(storage_dir) / f"{blob_id}.key"
+    blob_path = Path(storage_dir) / f"{blob_id}.blob"
+
+    assert blob_path.exists(), "Blob file should exist after store"
+    assert key_path.exists(), "Per-document key file should exist after store"
+    assert len(key_path.read_bytes()) == 32, "Key should be 32 bytes (NaCl SecretBox)"
+
+
+def test_delete_shreds_key(owner_client, retrieve_capture, storage_dir):
+    """Deleting a blob shreds the key file — retrieve fails after delete."""
+    blob_id = "e2e-delete-blob"
+    plaintext = b"delete me securely"
+
+    owner_client.store_blob(blob_id, plaintext)
+
+    key_path = Path(storage_dir) / f"{blob_id}.key"
+    assert key_path.exists(), "Key file should exist before delete"
+
+    owner_client.delete_blob(blob_id)
+
+    assert not key_path.exists(), "Key file should be gone after delete"
+
+    # Retrieve should fail — key is shredded, blob is unreadable
+    owner_client.retrieve_blob(blob_id)
+    response = retrieve_capture.wait()
+    assert response.found is False
