@@ -63,7 +63,7 @@ class NodeClient:
 
         # Request remote replicas if any
         if replicas > 0:
-            request = StoreRequestMessage(blob_id=blob_id, data=data)
+            request = StoreRequestMessage(blob_id=blob_id, data=encrypted)
             for _ in range(replicas):
                 self._publisher.publish(
                     self._store_topic, request.model_dump_json().encode()
