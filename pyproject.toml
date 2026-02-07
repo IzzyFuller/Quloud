@@ -75,9 +75,11 @@ paths_to_mutate = [
     # Core
     "src/quloud/core/storage_service.py",
     "src/quloud/core/encryption_service.py",
+    "src/quloud/core/key_store_service.py",
     # Adapters
     "src/quloud/adapters/encryption/pynacl_adapter.py",
     "src/quloud/adapters/storage/filesystem_adapter.py",
+    "src/quloud/adapters/key_store/filesystem_adapter.py",
     # Services
     "src/quloud/services/node_client.py",
     "src/quloud/services/message_contracts.py",
