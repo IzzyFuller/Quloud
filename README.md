@@ -4,6 +4,7 @@
 [![codecov](https://codecov.io/gh/IzzyFuller/Quloud/graph/badge.svg)](https://codecov.io/gh/IzzyFuller/Quloud)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/)
 [![Mutation Score](https://img.shields.io/badge/mutation%20score-100%25%20(327%2F327)-brightgreen)](https://mutmut.readthedocs.io/)
+[![CodeQL](https://github.com/IzzyFuller/Quloud/actions/workflows/codeql.yml/badge.svg)](https://github.com/IzzyFuller/Quloud/actions/workflows/codeql.yml)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 **Trustless Federated Storage — Autonomous NAS Nodes with Zero-Knowledge Access Control**

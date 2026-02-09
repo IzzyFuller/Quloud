@@ -37,6 +37,22 @@ jobs:
       - name: Type check
         run: uv run mypy src/
 
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - name: Set up Python
+        run: uv python install 3.13
+      - name: Install dependencies
+        run: uv sync --dev
+      - name: Dependency vulnerability scan
+        run: uvx pip-audit
+      - name: Security lint
+        run: uvx bandit -r src/ -c pyproject.toml
+
   test:
     runs-on: ubuntu-latest
     strategy:
