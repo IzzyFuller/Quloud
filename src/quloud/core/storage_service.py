@@ -27,6 +27,10 @@ class StorageService:
         """Retrieve data by ID. Returns None if not found."""
         return self._storage.retrieve(blob_id)
 
+    def delete(self, blob_id: str) -> bool:
+        """Delete data by ID. Returns True if deleted, False if not found."""
+        return self._storage.delete(blob_id)
+
     def compute_proof(self, data: bytes, seed: bytes) -> bytes:
         """Compute hash(data + seed) proof.
 

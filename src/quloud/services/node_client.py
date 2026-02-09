@@ -6,6 +6,7 @@ from quloud.core.encryption_service import EncryptionService
 from quloud.core.key_store_service import KeyStoreService
 from quloud.core.storage_service import StorageService
 from quloud.services.message_contracts import (
+    DeleteRequestMessage,
     StoreRequestMessage,
     RetrieveRequestMessage,
     ProofRequestMessage,
@@ -28,6 +29,7 @@ class NodeClient:
         store_topic: str,
         retrieve_topic: str,
         proof_topic: str,
+        delete_topic: str,
     ) -> None:
         """Initialize the client.
 
@@ -39,6 +41,7 @@ class NodeClient:
             store_topic: Topic for StoreRequest messages.
             retrieve_topic: Topic for RetrieveRequest messages.
             proof_topic: Topic for ProofOfStorageRequest messages.
+            delete_topic: Topic for DeleteRequest messages.
         """
         self._storage = storage
         self._encryption = encryption
@@ -47,6 +50,7 @@ class NodeClient:
         self._store_topic = store_topic
         self._retrieve_topic = retrieve_topic
         self._proof_topic = proof_topic
+        self._delete_topic = delete_topic
 
     def store_blob(self, blob_id: str, data: bytes, replicas: int = 0) -> None:
         """Store data locally and optionally replicate to remote nodes.
@@ -91,12 +95,15 @@ class NodeClient:
         self._publisher.publish(self._proof_topic, request.model_dump_json().encode())
 
     def delete_blob(self, blob_id: str) -> None:
-        """Delete a blob by shredding its encryption key (crypto erasure).
+        """Delete a blob locally and publish delete request to the network.
 
-        The encrypted blob data may remain on disk but is permanently
-        inaccessible without its per-document key.
+        Shreds the local encryption key, deletes the local blob data,
+        and publishes a DeleteRequest for remote nodes to do the same.
 
         Args:
             blob_id: Unique identifier for the blob to delete.
         """
         self._key_store.delete_key(blob_id)
+        self._storage.delete(blob_id)
+        request = DeleteRequestMessage(blob_id=blob_id)
+        self._publisher.publish(self._delete_topic, request.model_dump_json().encode())

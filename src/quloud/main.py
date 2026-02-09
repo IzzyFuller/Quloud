@@ -24,10 +24,12 @@ from quloud.core.encryption_service import EncryptionService
 from quloud.core.key_store_service import KeyStoreService
 from quloud.core.storage_service import StorageService
 from quloud.services.message_contracts import (
+    DeleteRequestMessage,
     StoreRequestMessage,
     RetrieveRequestMessage,
     ProofRequestMessage,
 )
+from quloud.services.delete_request_handler import DeleteRequestHandler
 from quloud.services.store_request_handler import StoreRequestHandler
 from quloud.services.retrieve_request_handler import RetrieveRequestHandler
 from quloud.services.proof_request_handler import ProofRequestHandler
@@ -71,6 +73,7 @@ def setup_queues(channel: pika.channel.Channel) -> None:
         "quloud.retrieve.responses",
         "quloud.proof.requests",
         "quloud.proof.responses",
+        "quloud.delete.requests",
     ]
     for queue in queues:
         channel.queue_declare(queue=queue, durable=True)
@@ -119,6 +122,9 @@ def start_node(
     proof_subscriber = RabbitMQSubscriber(proof_connection)
     proof_publisher = RabbitMQPublisher(proof_connection)
 
+    delete_connection = make_connection()
+    delete_subscriber = RabbitMQSubscriber(delete_connection)
+
     # Create request handlers
     store_handler = StoreRequestHandler(
         storage=storage_service,
@@ -144,6 +150,10 @@ def start_node(
         node_id=node_id,
         response_topic="quloud.proof.responses",
     )
+    delete_handler = DeleteRequestHandler(
+        storage=storage_service,
+        key_store=key_store_service,
+    )
 
     # Create and start message consumers
     consumers = [
@@ -164,6 +174,12 @@ def start_node(
             handler=proof_handler,
             request_model=ProofRequestMessage,
             subscriber=proof_subscriber,
+        ),
+        MessageConsumer(
+            subscription="quloud.delete.requests",
+            handler=delete_handler,
+            request_model=DeleteRequestMessage,
+            subscriber=delete_subscriber,
         ),
     ]
 

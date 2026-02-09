@@ -38,6 +38,10 @@ class StorageProtocol(Protocol):
         """Retrieve data by ID. Returns None if not found."""
         ...
 
+    def delete(self, blob_id: str) -> bool:
+        """Delete data by ID. Returns True if deleted, False if not found."""
+        ...
+
 
 class KeyStoreProtocol(Protocol):
     """Port for per-document encryption key storage.

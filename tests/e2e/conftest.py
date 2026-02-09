@@ -123,6 +123,7 @@ def owner_client(quloud_node, storage_dir):
         store_topic="quloud.store.requests",
         retrieve_topic="quloud.retrieve.requests",
         proof_topic="quloud.proof.requests",
+        delete_topic="quloud.delete.requests",
     )
 
 

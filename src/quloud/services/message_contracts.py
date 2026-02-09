@@ -10,6 +10,12 @@ from typing import Any
 from pydantic import BaseModel, field_serializer, field_validator
 
 
+class DeleteRequestMessage(BaseModel):
+    """Wire format for delete request."""
+
+    blob_id: str
+
+
 class StoreRequestMessage(BaseModel):
     """Wire format for store request."""
 
