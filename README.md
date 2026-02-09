@@ -3,7 +3,7 @@
 [![CI](https://github.com/IzzyFuller/Quloud/actions/workflows/ci.yml/badge.svg)](https://github.com/IzzyFuller/Quloud/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/IzzyFuller/Quloud/graph/badge.svg)](https://codecov.io/gh/IzzyFuller/Quloud)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/)
-[![Mutation Score](https://img.shields.io/badge/mutation%20score-100%25%20(327%2F327)-brightgreen)](https://mutmut.readthedocs.io/)
+[![Mutation Score](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/IzzyFuller/27ba2d929a0036b1fd2b98796db2a4cf/raw/quloud-mutation-score.json)](https://mutmut.readthedocs.io/)
 [![CodeQL](https://github.com/IzzyFuller/Quloud/actions/workflows/codeql.yml/badge.svg)](https://github.com/IzzyFuller/Quloud/actions/workflows/codeql.yml)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 

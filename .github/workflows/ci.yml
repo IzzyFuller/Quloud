@@ -75,3 +75,51 @@ jobs:
         with:
           file: ./coverage.xml
           fail_ci_if_error: false
+
+  mutation:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+      - name: Set up Python
+        run: uv python install 3.13
+      - name: Install dependencies
+        run: uv sync --dev
+      - name: Run mutation testing
+        run: uv run mutmut run --no-progress
+      - name: Extract mutation score
+        id: mutation
+        run: |
+          RESULTS=$(uv run mutmut results --all true 2>&1)
+          KILLED=$(echo "$RESULTS" | grep -c ': killed$')
+          TIMEOUT=$(echo "$RESULTS" | grep -c ': timeout$')
+          SURVIVED=$(echo "$RESULTS" | grep -c ': survived$')
+          TOTAL=$(echo "$RESULTS" | grep -cE ': (killed|survived|timeout|no tests|suspicious|skipped|segfault|not checked)$')
+          CAUGHT=$((KILLED + TIMEOUT))
+          if [ "$TOTAL" -gt 0 ]; then
+            SCORE=$(python3 -c "print(round($CAUGHT / $TOTAL * 100, 1))")
+          else
+            SCORE="0"
+          fi
+          echo "score=${SCORE}% (${CAUGHT}/${TOTAL})" >> "$GITHUB_OUTPUT"
+          if [ "$SCORE" = "100.0" ]; then
+            echo "color=brightgreen" >> "$GITHUB_OUTPUT"
+          elif python3 -c "exit(0 if $SCORE >= 95 else 1)"; then
+            echo "color=green" >> "$GITHUB_OUTPUT"
+          elif python3 -c "exit(0 if $SCORE >= 90 else 1)"; then
+            echo "color=yellow" >> "$GITHUB_OUTPUT"
+          else
+            echo "color=red" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Update badge
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: 27ba2d929a0036b1fd2b98796db2a4cf
+          filename: quloud-mutation-score.json
+          label: mutation score
+          message: ${{ steps.mutation.outputs.score }}
+          color: ${{ steps.mutation.outputs.color }}
