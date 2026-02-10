@@ -32,11 +32,35 @@ from quloud.services.proof_response_handler import ProofResponseHandler
 
 RABBITMQ_PORT = 5672
 
+REQUEST_QUEUES = [
+    "quloud.store.requests",
+    "quloud.retrieve.requests",
+    "quloud.proof.requests",
+    "quloud.delete.requests",
+]
+
 
 def _make_connection() -> pika.BlockingConnection:
     return pika.BlockingConnection(
         pika.ConnectionParameters(host="localhost", port=RABBITMQ_PORT)
     )
+
+
+def _wait_for_consumers(queues: list[str], timeout: float = 5.0) -> None:
+    """Block until every queue has at least one active consumer."""
+    conn = _make_connection()
+    ch = conn.channel()
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if all(
+            ch.queue_declare(queue=q, passive=True).method.consumer_count > 0
+            for q in queues
+        ):
+            conn.close()
+            return
+        time.sleep(0.05)
+    conn.close()
+    raise RuntimeError(f"Consumers not ready on {queues} within {timeout}s")
 
 
 # ============================================================================
@@ -132,6 +156,8 @@ def replica_node(rabbitmq_broker, replica_storage_dir):
         node_id="replica-node",
     )
 
+    _wait_for_consumers(REQUEST_QUEUES)
+
     yield handle
 
     for consumer in handle.consumers:
@@ -211,6 +237,7 @@ def proof_capture(replica_node):
 
     consumer.start()
     threading.Thread(target=consumer.run, daemon=True).start()
+    _wait_for_consumers(["quloud.proof.responses"])
 
     yield capture
 
@@ -243,6 +270,7 @@ def store_capture(replica_node):
 
     consumer.start()
     threading.Thread(target=consumer.run, daemon=True).start()
+    _wait_for_consumers(["quloud.store.responses"])
 
     yield capture
 
@@ -275,6 +303,7 @@ def restore_capture(replica_node):
 
     consumer.start()
     threading.Thread(target=consumer.run, daemon=True).start()
+    _wait_for_consumers(["quloud.retrieve.responses"])
 
     yield capture
 
