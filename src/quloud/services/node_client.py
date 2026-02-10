@@ -7,8 +7,9 @@ from quloud.core.key_store_service import KeyStoreService
 from quloud.core.storage_service import StorageService
 from quloud.services.message_contracts import (
     DeleteRequestMessage,
-    StoreRequestMessage,
     RetrieveRequestMessage,
+    RetrieveResponseMessage,
+    StoreRequestMessage,
     ProofRequestMessage,
 )
 
@@ -73,11 +74,40 @@ class NodeClient:
                     self._store_topic, request.model_dump_json().encode()
                 )
 
-    def retrieve_blob(self, blob_id: str) -> None:
-        """Publish RetrieveRequest to the network.
+    def retrieve_blob(self, blob_id: str) -> RetrieveResponseMessage:
+        """Retrieve a blob from local storage.
 
         Args:
             blob_id: Unique identifier for the blob to retrieve.
+
+        Returns:
+            Response with found=True and decrypted data, or found=False.
+        """
+        encrypted = self._storage.retrieve(blob_id)
+        if encrypted is None:
+            return RetrieveResponseMessage(
+                blob_id=blob_id, node_id="", found=False, data=None
+            )
+
+        key = self._key_store.retrieve_key(blob_id)
+        if key is None:
+            return RetrieveResponseMessage(
+                blob_id=blob_id, node_id="", found=False, data=None
+            )
+
+        plaintext = self._encryption.decrypt(key, encrypted)
+        return RetrieveResponseMessage(
+            blob_id=blob_id, node_id="", found=True, data=plaintext
+        )
+
+    def restore_blob(self, blob_id: str) -> None:
+        """Request a blob be restored from a remote backup node.
+
+        Publishes a RetrieveRequest to the network. The response
+        is handled asynchronously by the restore response handler.
+
+        Args:
+            blob_id: Unique identifier for the blob to restore.
         """
         request = RetrieveRequestMessage(blob_id=blob_id)
         self._publisher.publish(

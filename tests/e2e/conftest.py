@@ -15,6 +15,12 @@ import pytest
 from synapse.adapters.rabbitmq import RabbitMQPublisher, RabbitMQSubscriber
 from synapse.consumer.message_consumer import MessageConsumer
 
+from quloud.adapters.encryption.pynacl_adapter import PyNaClEncryptionAdapter
+from quloud.adapters.key_store.filesystem_adapter import FilesystemKeyStoreAdapter
+from quloud.adapters.storage.filesystem_adapter import FilesystemStorageAdapter
+from quloud.core.encryption_service import EncryptionService
+from quloud.core.key_store_service import KeyStoreService
+from quloud.core.storage_service import StorageService
 from quloud.main import start_node
 from quloud.services.message_contracts import (
     ProofResponseMessage,
@@ -105,18 +111,25 @@ def rabbitmq_broker():
 
 @pytest.fixture(scope="session")
 def storage_dir():
-    """Provide temporary storage directory."""
-    with tempfile.TemporaryDirectory(prefix="quloud_e2e_") as d:
+    """Owner's local storage directory."""
+    with tempfile.TemporaryDirectory(prefix="quloud_owner_") as d:
         yield Path(d)
 
 
 @pytest.fixture(scope="session")
-def quloud_node(rabbitmq_broker, storage_dir):
-    """Start a Quloud storage node using the real start_node() entry point."""
+def replica_storage_dir():
+    """Replica node's storage directory."""
+    with tempfile.TemporaryDirectory(prefix="quloud_replica_") as d:
+        yield Path(d)
+
+
+@pytest.fixture(scope="session")
+def replica_node(rabbitmq_broker, replica_storage_dir):
+    """Replica node that handles network requests (store, retrieve, proof, delete)."""
     handle = start_node(
         make_connection=_make_connection,
-        storage_dir=storage_dir,
-        node_id="test-node",
+        storage_dir=replica_storage_dir,
+        node_id="replica-node",
     )
 
     yield handle
@@ -131,15 +144,23 @@ def quloud_node(rabbitmq_broker, storage_dir):
 
 
 @pytest.fixture(scope="session")
-def owner_client(quloud_node, storage_dir):
-    """Real NodeClient for the owner — stores locally with encryption."""
+def owner_client(replica_node, storage_dir):
+    """Owner's NodeClient with separate local storage from the replica."""
+    storage_service = StorageService(
+        storage=FilesystemStorageAdapter(base_dir=storage_dir)
+    )
+    encryption_service = EncryptionService(encryption=PyNaClEncryptionAdapter())
+    key_store_service = KeyStoreService(
+        key_store=FilesystemKeyStoreAdapter(base_dir=storage_dir)
+    )
+
     conn = _make_connection()
     publisher = RabbitMQPublisher(conn)
 
     return NodeClient(
-        storage=quloud_node.storage_service,
-        encryption=quloud_node.encryption_service,
-        key_store=quloud_node.key_store_service,
+        storage=storage_service,
+        encryption=encryption_service,
+        key_store=key_store_service,
         publisher=publisher,
         store_topic="quloud.store.requests",
         retrieve_topic="quloud.retrieve.requests",
@@ -175,7 +196,7 @@ class ResponseCapture:
 
 
 @pytest.fixture(scope="session")
-def proof_capture(quloud_node):
+def proof_capture(replica_node):
     """ProofResponseHandler wired to a MessageConsumer on proof responses."""
     capture = ResponseCapture()
     handler = ProofResponseHandler(on_response=capture.callback)
@@ -207,7 +228,7 @@ class StoreResponseHandler:
 
 
 @pytest.fixture(scope="session")
-def store_capture(quloud_node):
+def store_capture(replica_node):
     """StoreResponseHandler wired to a MessageConsumer on store responses."""
     capture = ResponseCapture()
     handler = StoreResponseHandler(on_response=capture.callback)
@@ -239,7 +260,7 @@ class RetrieveResponseHandler:
 
 
 @pytest.fixture(scope="session")
-def retrieve_capture(quloud_node):
+def restore_capture(replica_node):
     """RetrieveResponseHandler wired to a MessageConsumer on retrieve responses."""
     capture = ResponseCapture()
     handler = RetrieveResponseHandler(on_response=capture.callback)
