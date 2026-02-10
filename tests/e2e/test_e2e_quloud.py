@@ -10,25 +10,31 @@ import time
 from pathlib import Path
 
 
-def test_store_and_prove(owner_client, proof_capture):
-    """Full round-trip: owner stores locally, then verifies via proof."""
+def test_store_and_prove(owner_client, store_capture, retrieve_capture, proof_capture):
+    """Full round-trip: owner stores with replica, then verifies via proof."""
     blob_id = "e2e-test-blob"
     plaintext = b"hello quloud e2e"
 
-    # Owner stores — NodeClient encrypts before local storage
-    owner_client.store_blob(blob_id, plaintext)
+    # Owner stores and replicates — handler double-encrypts its copy
+    owner_client.store_blob(blob_id, plaintext, replicas=1)
+    store_response = store_capture.wait()
+    assert store_response.stored is True
 
-    # Owner requests proof
+    # Retrieve the data — handler decrypts its layer, returns E_owner
+    owner_client.retrieve_blob(blob_id)
+    retrieve_response = retrieve_capture.wait()
+    assert retrieve_response.found is True
+
+    # Request proof — handler decrypts its layer, computes SHA256(E_owner + seed)
     seed = os.urandom(32)
     owner_client.request_proof(blob_id, seed)
 
-    # Proof response arrives via ProofResponseHandler
     response = proof_capture.wait()
     assert response.found is True
     assert response.blob_id == blob_id
 
-    # Owner computes expected proof from their plaintext
-    expected_proof = hashlib.sha256(plaintext + seed).digest()
+    # Verify proof against retrieved data
+    expected_proof = hashlib.sha256(retrieve_response.data + seed).digest()
     assert response.proof == expected_proof
 
 
