@@ -79,6 +79,16 @@ jobs:
   mutation:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    services:
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmqctl node_health_check"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v7
@@ -89,22 +99,25 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
       - name: Run mutation testing
-        run: uv run mutmut run
+        run: uv run mutmut run --max-children 1
       - name: Extract mutation score
         id: mutation
         run: |
+          echo "=== Full mutmut results ==="
+          uv run mutmut results --all true 2>&1 || true
+          echo "==========================="
           RESULTS=$(uv run mutmut results --all true 2>&1)
           KILLED=$(echo "$RESULTS" | grep -c ': killed$')
           TIMEOUT=$(echo "$RESULTS" | grep -c ': timeout$')
           SURVIVED=$(echo "$RESULTS" | grep -c ': survived$')
           TOTAL=$(echo "$RESULTS" | grep -cE ': (killed|survived|timeout|no tests|suspicious|skipped|segfault|not checked)$')
-          CAUGHT=$((KILLED + TIMEOUT))
+          echo "Killed: $KILLED | Timeout: $TIMEOUT | Survived: $SURVIVED | Total: $TOTAL"
           if [ "$TOTAL" -gt 0 ]; then
-            SCORE=$(python3 -c "print(round($CAUGHT / $TOTAL * 100, 1))")
+            SCORE=$(python3 -c "print(round($KILLED / $TOTAL * 100, 1))")
           else
             SCORE="0"
           fi
-          echo "score=${SCORE}% (${CAUGHT}/${TOTAL})" >> "$GITHUB_OUTPUT"
+          echo "score=${SCORE}% (${KILLED}/${TOTAL})" >> "$GITHUB_OUTPUT"
           if [ "$SCORE" = "100.0" ]; then
             echo "color=brightgreen" >> "$GITHUB_OUTPUT"
           elif python3 -c "exit(0 if $SCORE >= 95 else 1)"; then

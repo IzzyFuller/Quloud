@@ -1,9 +1,13 @@
-.PHONY: mutate mutate-clean mutate-show mutate-html
+.PHONY: mutate mutate-ci mutate-clean mutate-show mutate-html
 
 # Run mutation testing (uses paths from pyproject.toml [tool.mutmut])
 # Default config targets core modules (~2-5 min)
 mutate:
 	uv run mutmut run
+
+# Run mutation testing sequentially (CI-identical behavior)
+mutate-ci:
+	uv run mutmut run --max-children 1
 
 # Clean mutation cache and re-run
 mutate-clean:

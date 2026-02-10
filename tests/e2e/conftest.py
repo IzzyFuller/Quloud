@@ -38,9 +38,30 @@ def _make_connection() -> pika.BlockingConnection:
 # ============================================================================
 
 
+def _rabbitmq_reachable() -> bool:
+    """Check if RabbitMQ is already listening on localhost."""
+    try:
+        conn = pika.BlockingConnection(
+            pika.ConnectionParameters(host="localhost", port=RABBITMQ_PORT)
+        )
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+
 @pytest.fixture(scope="session")
 def rabbitmq_broker():
-    """Start RabbitMQ Docker container for test session."""
+    """Ensure RabbitMQ is available for the test session.
+
+    If RabbitMQ is already reachable (e.g. CI service container), skip
+    Docker management entirely.  Otherwise start a container and tear it
+    down on session end.
+    """
+    if _rabbitmq_reachable():
+        yield
+        return
+
     subprocess.run(["docker", "rm", "-f", "rabbitmq-quloud-test"], capture_output=True)
 
     subprocess.run(
