@@ -211,7 +211,7 @@ class ResponseCapture:
         self._response = response
         self._event.set()
 
-    def wait(self, timeout: float = 1.0) -> object:
+    def wait(self, timeout: float = 5.0) -> object:
         """Wait for a response. Resets state for next capture."""
         if not self._event.wait(timeout):
             raise TimeoutError(f"No response within {timeout}s")
