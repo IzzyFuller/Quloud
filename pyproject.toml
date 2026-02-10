@@ -41,6 +41,7 @@ omit = [
     "*/protocols.py",
     "*/protocols/*.py",
     "*/main.py",
+    "tests/*",
 ]
 
 [tool.coverage.report]
