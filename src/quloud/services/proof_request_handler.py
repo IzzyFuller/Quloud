@@ -55,26 +55,30 @@ class ProofRequestHandler:
         """
         logger.info("Proof request received for blob_id=%s", request.blob_id)
         encrypted_data = self._storage.retrieve(request.blob_id)
-        key = self._key_store.retrieve_key(request.blob_id)
-        if encrypted_data is None or key is None:
-            logger.warning("Blob or key not found: blob_id=%s", request.blob_id)
+        if encrypted_data is None:
+            logger.warning("Blob not found: blob_id=%s", request.blob_id)
             response = ProofResponseMessage(
                 blob_id=request.blob_id,
                 node_id=self._node_id,
                 proof=None,
                 found=False,
             )
-        else:
-            plaintext = self._encryption.decrypt(key, encrypted_data)
-            result = self._storage.compute_proof(plaintext, request.seed)
-            logger.info("Proof computed for blob_id=%s", request.blob_id)
-            response = ProofResponseMessage(
-                blob_id=request.blob_id,
-                node_id=self._node_id,
-                proof=result,
-                found=True,
+            self._publisher.publish(
+                self._response_topic, response.model_dump_json().encode()
             )
+            return
 
+        key = self._key_store.retrieve_key(request.blob_id)
+        plaintext = self._encryption.decrypt(key, encrypted_data)
+        result = self._storage.compute_proof(plaintext, request.seed)
+        logger.info("Proof computed for blob_id=%s", request.blob_id)
+
+        response = ProofResponseMessage(
+            blob_id=request.blob_id,
+            node_id=self._node_id,
+            proof=result,
+            found=True,
+        )
         self._publisher.publish(
             self._response_topic, response.model_dump_json().encode()
         )

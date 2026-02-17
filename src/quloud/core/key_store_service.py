@@ -18,7 +18,7 @@ class KeyStoreService:
         """Store an encryption key for the given blob."""
         self._key_store.store_key(blob_id, key)
 
-    def retrieve_key(self, blob_id: str) -> bytes | None:
+    def retrieve_key(self, blob_id: str) -> bytes:
         """Retrieve the encryption key for a blob."""
         return self._key_store.retrieve_key(blob_id)
 

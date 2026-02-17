@@ -76,6 +76,15 @@ def test_proof_missing_blob(owner_client, proof_capture):
     assert response.proof is None
 
 
+def test_restore_missing_blob(owner_client, restore_capture):
+    """Retrieve request for a non-existent blob on remote returns found=False."""
+    owner_client.restore_blob("does-not-exist")
+
+    response = restore_capture.wait()
+    assert response.found is False
+    assert response.data is None
+
+
 def test_store_uses_per_document_key(owner_client, storage_dir):
     """Storing a blob creates a per-document .key file alongside the .blob file."""
     blob_id = "e2e-per-doc-key"

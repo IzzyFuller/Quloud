@@ -33,19 +33,16 @@ class FilesystemKeyStoreAdapter:
         self._base_dir.mkdir(parents=True, exist_ok=True)
         self._get_key_path(blob_id).write_bytes(key)
 
-    def retrieve_key(self, blob_id: str) -> bytes | None:
+    def retrieve_key(self, blob_id: str) -> bytes:
         """Retrieve the encryption key for a blob.
 
         Args:
             blob_id: Unique identifier for the blob.
 
         Returns:
-            Key bytes if found, None otherwise.
+            Key bytes.
         """
-        key_path = self._get_key_path(blob_id)
-        if not key_path.exists():
-            return None
-        return key_path.read_bytes()
+        return self._get_key_path(blob_id).read_bytes()
 
     def delete_key(self, blob_id: str) -> None:
         """Securely delete the encryption key for a blob.

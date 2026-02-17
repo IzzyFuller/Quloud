@@ -54,8 +54,8 @@ class KeyStoreProtocol(Protocol):
         """Store an encryption key for the given blob."""
         ...
 
-    def retrieve_key(self, blob_id: str) -> bytes | None:
-        """Retrieve the encryption key for a blob. Returns None if not found."""
+    def retrieve_key(self, blob_id: str) -> bytes:
+        """Retrieve the encryption key for a blob."""
         ...
 
     def delete_key(self, blob_id: str) -> None:

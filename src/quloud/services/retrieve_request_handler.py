@@ -57,21 +57,28 @@ class RetrieveRequestHandler:
         """
         logger.info("Retrieve request received for blob_id=%s", request.blob_id)
         encrypted_data = self._storage.retrieve(request.blob_id)
+        if encrypted_data is None:
+            logger.warning("Blob not found: blob_id=%s", request.blob_id)
+            response = RetrieveResponseMessage(
+                blob_id=request.blob_id,
+                node_id=self._node_id,
+                data=None,
+                found=False,
+            )
+            self._publisher.publish(
+                self._response_topic, response.model_dump_json().encode()
+            )
+            return
+
         key = self._key_store.retrieve_key(request.blob_id)
-        if encrypted_data is None or key is None:
-            logger.warning("Blob or key not found: blob_id=%s", request.blob_id)
-            data = None
-            found = False
-        else:
-            data = self._encryption.decrypt(key, encrypted_data)
-            found = True
-            logger.info("Retrieved blob_id=%s", request.blob_id)
+        data = self._encryption.decrypt(key, encrypted_data)
+        logger.info("Retrieved blob_id=%s", request.blob_id)
 
         response = RetrieveResponseMessage(
             blob_id=request.blob_id,
             node_id=self._node_id,
             data=data,
-            found=found,
+            found=True,
         )
         self._publisher.publish(
             self._response_topic, response.model_dump_json().encode()

@@ -90,11 +90,6 @@ class NodeClient:
             )
 
         key = self._key_store.retrieve_key(blob_id)
-        if key is None:
-            return RetrieveResponseMessage(
-                blob_id=blob_id, node_id="", found=False, data=None
-            )
-
         plaintext = self._encryption.decrypt(key, encrypted)
         return RetrieveResponseMessage(
             blob_id=blob_id, node_id="", found=True, data=plaintext
