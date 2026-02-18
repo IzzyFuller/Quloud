@@ -95,20 +95,35 @@ def test_restore_missing_blob(owner_client, bus_response):
     assert response.data is None
 
 
-def test_delete_returns_correct_status(storage_dir):
-    """StorageService.delete returns True when blob exists, False when not found."""
+def test_adapter_delete_and_nested_directory_creation(tmp_path):
+    """Delete returns correct status; adapters create nested directories.
+
+    Kills delete-return-value mutations (StorageService.delete(None),
+    return True/False flips) and mkdir(parents=True) mutations.
+    """
+    from quloud.adapters.key_store.filesystem_adapter import FilesystemKeyStoreAdapter
     from quloud.adapters.storage.filesystem_adapter import FilesystemStorageAdapter
     from quloud.core.storage_service import StorageService
 
-    storage = StorageService(storage=FilesystemStorageAdapter(base_dir=storage_dir))
+    # Part 1: delete return values
+    flat_dir = tmp_path / "flat"
+    flat_dir.mkdir()
+    storage = StorageService(storage=FilesystemStorageAdapter(base_dir=flat_dir))
 
     storage.store("del-test", b"some data")
     assert storage.delete("del-test") is True
     assert storage.delete("del-test") is False
 
+    # Part 2: nested storage directory creation (kills mkdir(parents=True) mutations)
+    nested_dir = tmp_path / "deep" / "nested" / "storage"
 
-def test_store_uses_per_document_key(owner_client, storage_dir):
-    """Storing a blob creates a per-document .key file alongside the .blob file."""
+    nested_storage = FilesystemStorageAdapter(base_dir=nested_dir)
+    nested_storage.store("nested-test", b"data")
+    assert (nested_dir / "nested-test.blob").read_bytes() == b"data"
+
+
+def test_store_uses_per_document_key(owner_client, storage_dir, tmp_path):
+    """Per-document key file created alongside blob; key store creates nested dirs."""
     blob_id = "mut-per-doc-key"
     owner_client.store_blob(blob_id, b"per-document key test")
 
@@ -118,3 +133,11 @@ def test_store_uses_per_document_key(owner_client, storage_dir):
     assert blob_path.exists(), "Blob file should exist after store"
     assert key_path.exists(), "Per-document key file should exist after store"
     assert len(key_path.read_bytes()) == 32, "Key should be 32 bytes (NaCl SecretBox)"
+
+    # Nested key directory creation (kills mkdir(parents=True) mutations)
+    from quloud.adapters.key_store.filesystem_adapter import FilesystemKeyStoreAdapter
+
+    key_dir = tmp_path / "deep" / "nested" / "keys"
+    key_store = FilesystemKeyStoreAdapter(base_dir=key_dir)
+    key_store.store_key("nested-test", b"k" * 32)
+    assert (key_dir / "nested-test.key").read_bytes() == b"k" * 32
