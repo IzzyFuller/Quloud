@@ -97,10 +97,10 @@ jobs:
           uv run mutmut results --all true 2>&1 || true
           echo "==========================="
           RESULTS=$(uv run mutmut results --all true 2>&1)
-          KILLED=$(echo "$RESULTS" | grep -c ': killed$')
-          TIMEOUT=$(echo "$RESULTS" | grep -c ': timeout$')
-          SURVIVED=$(echo "$RESULTS" | grep -c ': survived$')
-          TOTAL=$(echo "$RESULTS" | grep -cE ': (killed|survived|timeout|no tests|suspicious|skipped|segfault|not checked)$')
+          KILLED=$(echo "$RESULTS" | grep -c ': killed$' || true)
+          TIMEOUT=$(echo "$RESULTS" | grep -c ': timeout$' || true)
+          SURVIVED=$(echo "$RESULTS" | grep -c ': survived$' || true)
+          TOTAL=$(echo "$RESULTS" | grep -cE ': (killed|survived|timeout|no tests|suspicious|skipped|segfault|not checked)$' || true)
           echo "Killed: $KILLED | Timeout: $TIMEOUT | Survived: $SURVIVED | Total: $TOTAL"
           if [ "$TOTAL" -gt 0 ]; then
             SCORE=$(python3 -c "print(round($KILLED / $TOTAL * 100, 1))")

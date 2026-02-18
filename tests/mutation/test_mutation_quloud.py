@@ -8,6 +8,9 @@ import hashlib
 import os
 from pathlib import Path
 
+from quloud.adapters.key_store.filesystem_adapter import FilesystemKeyStoreAdapter
+from quloud.adapters.storage.filesystem_adapter import FilesystemStorageAdapter
+from quloud.core.storage_service import StorageService
 from quloud.services.message_contracts import (
     ProofResponseMessage,
     RetrieveResponseMessage,
@@ -101,10 +104,6 @@ def test_adapter_delete_and_nested_directory_creation(tmp_path):
     Kills delete-return-value mutations (StorageService.delete(None),
     return True/False flips) and mkdir(parents=True) mutations.
     """
-    from quloud.adapters.key_store.filesystem_adapter import FilesystemKeyStoreAdapter
-    from quloud.adapters.storage.filesystem_adapter import FilesystemStorageAdapter
-    from quloud.core.storage_service import StorageService
-
     # Part 1: delete return values
     flat_dir = tmp_path / "flat"
     flat_dir.mkdir()
@@ -135,8 +134,6 @@ def test_store_uses_per_document_key(owner_client, storage_dir, tmp_path):
     assert len(key_path.read_bytes()) == 32, "Key should be 32 bytes (NaCl SecretBox)"
 
     # Nested key directory creation (kills mkdir(parents=True) mutations)
-    from quloud.adapters.key_store.filesystem_adapter import FilesystemKeyStoreAdapter
-
     key_dir = tmp_path / "deep" / "nested" / "keys"
     key_store = FilesystemKeyStoreAdapter(base_dir=key_dir)
     key_store.store_key("nested-test", b"k" * 32)
