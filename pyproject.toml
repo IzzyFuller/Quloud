@@ -73,23 +73,13 @@ ignore_missing_imports = true
 
 [tool.mutmut]
 paths_to_mutate = [
-    # Core
+    # Core (stdlib only — no C extensions)
     "src/quloud/core/storage_service.py",
     "src/quloud/core/encryption_service.py",
     "src/quloud/core/key_store_service.py",
-    # Adapters
-    "src/quloud/adapters/encryption/pynacl_adapter.py",
+    # Filesystem adapters (stdlib only)
     "src/quloud/adapters/storage/filesystem_adapter.py",
     "src/quloud/adapters/key_store/filesystem_adapter.py",
-    # Services
-    "src/quloud/services/node_client.py",
-    "src/quloud/services/message_contracts.py",
-    "src/quloud/services/store_request_handler.py",
-    "src/quloud/services/retrieve_request_handler.py",
-    "src/quloud/services/proof_request_handler.py",
-    "src/quloud/services/proof_response_handler.py",
-    "src/quloud/services/delete_request_handler.py",
 ]
-tests_dir = ["tests"]
+tests_dir = ["tests/mutation"]
 also_copy = ["src"]
-test_command = "python -m pytest tests/e2e/ -x --no-header -q"
