@@ -173,9 +173,7 @@ def replica_storage_dir(tmp_path: Path) -> Path:
 
 
 @pytest.fixture()
-def replica_node(
-    bus: InMemoryBus, replica_storage_dir: Path
-) -> None:
+def replica_node(bus: InMemoryBus, replica_storage_dir: Path) -> None:
     """Wire up the 4 request handlers with real services, subscribed to bus.
 
     No threads, no connections — handlers are called synchronously.
@@ -226,9 +224,7 @@ def replica_node(
 
 
 @pytest.fixture()
-def owner_client(
-    bus: InMemoryBus, replica_node: None, storage_dir: Path
-) -> NodeClient:
+def owner_client(bus: InMemoryBus, replica_node: None, storage_dir: Path) -> NodeClient:
     """Owner's NodeClient with real services and bus publisher."""
     storage_service = StorageService(
         storage=FilesystemStorageAdapter(base_dir=storage_dir)
