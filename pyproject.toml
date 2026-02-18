@@ -83,3 +83,4 @@ paths_to_mutate = [
 ]
 tests_dir = ["tests/mutation"]
 also_copy = ["src"]
+debug = true
