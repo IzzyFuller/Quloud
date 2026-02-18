@@ -84,8 +84,8 @@ Original data recovered
 The owner controls when and how often to verify storage integrity:
 
 1. **Audit Request**: Owner publishes proof-of-storage request with chunk ID and challenge seed
-2. **Cryptographic Response**: Storage nodes respond with `HMAC(node_key, chunk_id + E_owner(data) + challenge_seed)`
-3. **Validation**: Owner verifies responses - each node must prove it has the actual data
+2. **Cryptographic Response**: Storage nodes respond with `SHA256(data + seed)`
+3. **Validation**: Owner verifies `SHA256(data + seed)` - each node must prove it has the actual data
 4. **Self-Healing**: If fewer than N valid responses received, owner triggers automatic re-replication
 
 **Benefits:**
@@ -159,16 +159,32 @@ graph TD
 
 Each node must implement:
 
-| Function | Description |
-|----------|-------------|
-| `subscribe_to_topics()` | Listen to storage request and retrieval request topics |
-| `accept_chunk()` | Receive and store encrypted chunks + ZKP metadata from topic |
-| `ack_storage()` | Publish ACK to topic confirming successful storage |
-| `respond_to_retrieval()` | Return data only if valid ZKP is presented in retrieval request |
-| `respond_to_audit()` | Generate HMAC proof when owner publishes audit request |
-| `encrypt_chunk()` | Apply local encryption layer to all stored data |
-| `decrypt_chunk()` | Remove local encryption layer (for returning owned data) |
-| `validate_zkp()` | Verify ZKP before storing or returning data |
+**Owner operations** (`NodeClient`):
+
+| Method | Description |
+|--------|-------------|
+| `store_blob()` | Encrypt with per-document key, store locally, publish `StoreRequest` for replicas |
+| `retrieve_blob()` | Retrieve and decrypt from local storage |
+| `restore_blob()` | Publish `RetrieveRequest` to restore from remote backup |
+| `request_proof()` | Publish `ProofOfStorageRequest` with challenge seed |
+| `delete_blob()` | Shred local key (crypto erasure), delete blob, publish `DeleteRequest` |
+
+**Storage node handlers** (message-driven):
+
+| Handler | Description |
+|---------|-------------|
+| `StoreRequestHandler` | Encrypt with per-document key, store, publish `StoreResponse` ACK |
+| `RetrieveRequestHandler` | Decrypt and return blob data |
+| `ProofRequestHandler` | Compute `SHA256(data + seed)` proof of storage |
+| `DeleteRequestHandler` | Delete blob data and encryption key |
+
+**Core ports** (protocols):
+
+| Protocol | Methods |
+|----------|---------|
+| `EncryptionProtocol` | `generate_key()`, `encrypt()`, `decrypt()` |
+| `StorageProtocol` | `store()`, `retrieve()`, `delete()` |
+| `KeyStoreProtocol` | `store_key()`, `retrieve_key()`, `delete_key()` |
 
 ### Message-Driven Protocol
 
@@ -216,12 +232,12 @@ As long as the node responds correctly to protocol requests, it's a valid federa
 
 ## Technology
 
-- **Language**: Python 3.13+
+- **Language**: Python 3.11+
 - **Package Management**: uv
 - **Architecture**: Hexagonal (ports & adapters)
-- **Pub-Sub Infrastructure**: TBD (investigating options - see [RESEARCH.md](RESEARCH.md))
-- **Cryptography**: TBD (investigating ZKP libraries - see [RESEARCH.md](RESEARCH.md))
-- **Network**: TBD (protocol design in progress - see [RESEARCH.md](RESEARCH.md))
+- **Pub-Sub Infrastructure**: RabbitMQ via [synapse](https://github.com/IzzyFuller/synapse)
+- **Cryptography**: PyNaCl (XSalsa20 + Poly1305 via SecretBox)
+- **Message Contracts**: Pydantic with base64 wire encoding
 
 ## Current Status
 
@@ -238,7 +254,8 @@ As long as the node responds correctly to protocol requests, it's a valid federa
 ✅ Storage adapter (filesystem)
 ✅ Encryption service (PyNaCl SecretBox - XSalsa20 + Poly1305)
 ✅ Double-encryption: E_node(E_owner(data))
-✅ 63 tests, 78% coverage
+✅ Delete with crypto erasure (key shredding)
+✅ Mutation testing (100% kill rate)
 🔄 ZKP implementation (see [RESEARCH.md](RESEARCH.md))
 ⬜ CLI interface
 ⬜ Multi-node integration tests  
@@ -246,7 +263,7 @@ As long as the node responds correctly to protocol requests, it's a valid federa
 ## Getting Started
 
 **Prerequisites:**
-- Python 3.13+
+- Python 3.11+
 - uv package manager
 
 **Installation:**
@@ -276,5 +293,3 @@ MIT License - see [LICENSE](LICENSE)
 ---
 
 **Repository**: [IzzyFuller/Quloud](https://github.com/IzzyFuller/Quloud)
-test
-# test
