@@ -118,7 +118,7 @@ jobs:
             echo "color=red" >> "$GITHUB_OUTPUT"
           fi
       - name: Update badge
-        uses: schneegans/dynamic-badges-action@v1.7.0
+        uses: schneegans/dynamic-badges-action@v1.8.0
         with:
           auth: ${{ secrets.GIST_SECRET }}
           gistID: 27ba2d929a0036b1fd2b98796db2a4cf
