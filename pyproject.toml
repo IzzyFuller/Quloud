@@ -16,7 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
-    "pytest>=8.0.0",
+    "pytest>=9.0.3",
     "pytest-cov>=4.0.0",
 ]
 dev = [
@@ -55,7 +55,7 @@ exclude_lines = [
 [dependency-groups]
 dev = [
     "mypy>=1.15.0",
-    "pytest>=9.0.2",
+    "pytest>=9.0.3",
     "pytest-cov>=7.0.0",
     "ruff>=0.14.14",
     "mutmut>=3.2.0",
